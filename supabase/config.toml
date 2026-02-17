@@ -2,3 +2,9 @@ project_id = "ahybjvmlnpzkhgclidjd"
 
 [functions.chat]
 verify_jwt = false
+
+[functions.extract-pdf]
+verify_jwt = false
+
+[functions.scrape-url]
+verify_jwt = false

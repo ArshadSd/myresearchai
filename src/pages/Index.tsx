@@ -1,10 +1,30 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Upload, Link2, FileText, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [recentDocs, setRecentDocs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("documents")
+      .select("id, title, created_at, file_size, conversation_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .then(({ data }) => {
+        setRecentDocs(data || []);
+        setLoading(false);
+      });
+  }, [user]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -50,26 +70,46 @@ const Dashboard = () => {
         </motion.div>
       </div>
 
-      {/* Recent Documents Placeholder */}
+      {/* Recent Documents */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold">Recent Documents</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.05 }}>
-              <Card className="glass border-border/30 p-4 flex items-center gap-3 opacity-50">
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i} className="glass border-border/30 p-4 flex items-center gap-3 opacity-50">
                 <FileText className="h-8 w-8 text-muted-foreground/50" />
                 <div className="flex-1 space-y-2">
                   <div className="h-3 w-2/3 rounded bg-muted animate-pulse" />
                   <div className="h-2 w-1/3 rounded bg-muted animate-pulse" />
                 </div>
               </Card>
-            </motion.div>
-          ))}
-        </div>
-        <p className="text-sm text-muted-foreground text-center mt-4">Upload your first document to get started</p>
+            ))}
+          </div>
+        ) : recentDocs.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Upload your first document to get started</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentDocs.map((doc, i) => (
+              <motion.div key={doc.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                <Card
+                  className="glass border-border/30 p-4 flex items-center gap-3 cursor-pointer hover:bg-secondary/30 transition-colors"
+                  onClick={() => doc.conversation_id && navigate(`/chat?id=${doc.conversation_id}`)}
+                >
+                  <FileText className="h-8 w-8 text-primary/60 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{doc.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(doc.created_at).toLocaleDateString()} · {doc.file_size ? `${(doc.file_size / 1024).toFixed(0)}KB` : ""}
+                    </p>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
