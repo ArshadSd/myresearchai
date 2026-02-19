@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Brain, Loader2, Mic, Volume2, Paperclip, Link2, X,
-  Upload, FileText, Shield, ShieldAlert, ShieldCheck, Languages
+  Upload, FileText, Shield, ShieldAlert, ShieldCheck, Languages,
+  Download, FilePlus2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,12 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useMessages, type Message } from "@/hooks/useMessages";
 import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { streamChat } from "@/lib/streamChat";
+import { generateChatPdf } from "@/lib/generatePdf";
+import { FeedbackModal } from "@/components/FeedbackModal";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -34,6 +38,7 @@ const LANGUAGES = [
 
 const Chat = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const conversationId = searchParams.get("id");
   const action = searchParams.get("action");
   const { user } = useAuth();
@@ -48,6 +53,7 @@ const Chat = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const multiFileInputRef = useRef<HTMLInputElement>(null);
 
   // Upload states
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -62,8 +68,21 @@ const Chat = () => {
   const [urlSafety, setUrlSafety] = useState<{ score: number; level: string; flags: string[] } | null>(null);
 
   // Translation
-  const [showTranslation, setShowTranslation] = useState(false);
-  const [translateLang, setTranslateLang] = useState("en");
+  const [translatingIdx, setTranslatingIdx] = useState<number | null>(null);
+
+  // Feedback
+  const [showFeedback, setShowFeedback] = useState(false);
+  const prevConvRef = useRef<string | null>(null);
+
+  // Track analytics event
+  const trackEvent = useCallback(async (eventType: string, eventData?: any) => {
+    if (!user) return;
+    await supabase.from("analytics_events").insert({
+      user_id: user.id,
+      event_type: eventType,
+      event_data: eventData || {},
+    });
+  }, [user]);
 
   useEffect(() => {
     loadMessages();
@@ -73,10 +92,17 @@ const Chat = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Open modals based on URL action param
+  // Show feedback when leaving a conversation that had messages
   useEffect(() => {
-    if (action === "upload") setShowUploadModal(true);
-    if (action === "url") setShowUrlModal(true);
+    if (prevConvRef.current && prevConvRef.current !== conversationId && messages.length > 0) {
+      setShowFeedback(true);
+    }
+    prevConvRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (action === "upload") { setShowUploadModal(true); }
+    if (action === "url") { setShowUrlModal(true); }
   }, [action]);
 
   const ensureConversation = async (title: string) => {
@@ -106,10 +132,26 @@ const Chat = () => {
     setMessages((prev) => [...prev, userMsg]);
     await saveMessage(userMsg);
     setIsLoading(true);
+    trackEvent("chat_message");
 
     let assistantContent = "";
     const controller = new AbortController();
     abortRef.current = controller;
+
+    const ctx = overrideContext || documentContext || undefined;
+    // Domain mode: include all user documents as context
+    let domainCtx = ctx;
+    if ((window as any).__domainMode && !ctx && user) {
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("extracted_text")
+        .eq("user_id", user.id)
+        .not("extracted_text", "is", null)
+        .limit(5);
+      if (docs && docs.length > 0) {
+        domainCtx = docs.map((d) => d.extracted_text).join("\n\n---\n\n");
+      }
+    }
 
     const upsert = (chunk: string) => {
       assistantContent += chunk;
@@ -125,7 +167,7 @@ const Chat = () => {
     try {
       await streamChat({
         messages: [...messages, userMsg],
-        documentContext: overrideContext || documentContext || undefined,
+        documentContext: domainCtx,
         onDelta: upsert,
         onDone: async () => {
           setIsLoading(false);
@@ -169,33 +211,25 @@ const Chat = () => {
     setUploadProgress(10);
 
     try {
-      // Step 1: Upload to storage
       const filePath = `${user!.id}/${Date.now()}_${file.name}`;
       setUploadProgress(30);
 
-      const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(filePath, file);
-
+      const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file);
       if (uploadError) throw uploadError;
       setUploadProgress(50);
 
-      // Step 2: Extract text via edge function
       const formData = new FormData();
       formData.append("file", file);
-
       const extractRes = await fetch(`${SUPABASE_URL}/functions/v1/extract-pdf`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
         body: formData,
       });
-
       const extractData = await extractRes.json();
       setUploadProgress(75);
 
       if (!extractData.success) throw new Error(extractData.error || "Extraction failed");
 
-      // Step 3: Create conversation and store document
       const convId = await ensureConversation(`📄 ${file.name}`);
       if (!convId) return;
 
@@ -211,8 +245,8 @@ const Chat = () => {
       setUploadProgress(100);
       setDocumentContext(extractData.text);
       setShowUploadModal(false);
+      trackEvent("document_upload", { filename: file.name });
 
-      // Auto-send first message
       await handleSend(
         `I've uploaded a document: "${file.name}". Please provide a brief summary of the key points.`,
         extractData.text
@@ -227,11 +261,77 @@ const Chat = () => {
     }
   };
 
+  // ─── Multi-doc comparison ───
+  const handleMultiUpload = async (files: FileList) => {
+    if (files.length !== 2) {
+      toast({ title: "Select exactly 2 PDFs", variant: "destructive" });
+      return;
+    }
+    setIsUploading(true);
+    setUploadProgress(10);
+
+    try {
+      const texts: string[] = [];
+      const names: string[] = [];
+
+      for (let i = 0; i < 2; i++) {
+        const file = files[i];
+        if (!file.name.toLowerCase().endsWith(".pdf")) throw new Error(`${file.name} is not a PDF`);
+        names.push(file.name);
+
+        const filePath = `${user!.id}/${Date.now()}_${file.name}`;
+        await supabase.storage.from("documents").upload(filePath, file);
+        setUploadProgress(20 + i * 25);
+
+        const formData = new FormData();
+        formData.append("file", file);
+        const extractRes = await fetch(`${SUPABASE_URL}/functions/v1/extract-pdf`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+          body: formData,
+        });
+        const extractData = await extractRes.json();
+        if (!extractData.success) throw new Error(`Failed to extract ${file.name}`);
+        texts.push(extractData.text || "");
+
+        await supabase.from("documents").insert({
+          user_id: user!.id,
+          title: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          extracted_text: extractData.text?.slice(0, 50000) || "",
+        });
+      }
+
+      setUploadProgress(80);
+      setShowUploadModal(false);
+
+      const combinedCtx = `Document 1: "${names[0]}"\n${texts[0]}\n\n---\n\nDocument 2: "${names[1]}"\n${texts[1]}`;
+      setDocumentContext(combinedCtx);
+      trackEvent("multi_doc_comparison");
+
+      await handleSend(
+        `I've uploaded 2 documents for comparison: "${names[0]}" and "${names[1]}". Please compare them with a structured analysis covering: 1) Algorithms used, 2) Evaluation metrics, 3) Results. Present the comparison in a clear table format.`,
+        combinedCtx
+      );
+
+      toast({ title: "Comparison started", description: "Analyzing both documents..." });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileUpload(file);
+    if (e.dataTransfer.files.length === 2) {
+      handleMultiUpload(e.dataTransfer.files);
+    } else if (e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
   };
 
   // ─── URL Scrape ───
@@ -243,44 +343,58 @@ const Chat = () => {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/scrape-url`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
         body: JSON.stringify({ url: urlInput.trim() }),
       });
-
       const data = await res.json();
-
       if (data.safety) setUrlSafety(data.safety);
 
       if (!data.success) {
         if (data.error) toast({ title: "Scrape failed", description: data.error, variant: "destructive" });
-        setIsScrapingUrl(false);
         return;
       }
-
       if (data.safety?.level === "danger") {
-        toast({ title: "⚠️ Unsafe URL", description: "This URL has been flagged as potentially dangerous", variant: "destructive" });
-        setIsScrapingUrl(false);
+        toast({ title: "⚠️ Unsafe URL", description: "This URL is flagged as potentially dangerous", variant: "destructive" });
         return;
       }
 
-      // Create chat with URL content
       setDocumentContext(data.text);
       setShowUrlModal(false);
       setUrlInput("");
+      trackEvent("url_scrape", { url: urlInput });
 
       await handleSend(
         `I've loaded a webpage: "${data.title}" (${data.url}). Please provide a summary of the main content.`,
         data.text
       );
-
       toast({ title: "URL loaded", description: `${data.title} is ready for analysis` });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
       setIsScrapingUrl(false);
+    }
+  };
+
+  // ─── Translation ───
+  const handleTranslate = async (msgIdx: number, lang: string) => {
+    setTranslatingIdx(msgIdx);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
+        body: JSON.stringify({ text: messages[msgIdx].content, targetLang: lang }),
+      });
+      const data = await res.json();
+      if (data.success && data.translated) {
+        setMessages((prev) => prev.map((m, i) => (i === msgIdx ? { ...m, content: data.translated } : m)));
+        toast({ title: "Translated", description: `Translated to ${LANGUAGES.find((l) => l.value === lang)?.label}` });
+      } else {
+        toast({ title: "Translation failed", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Translation error", variant: "destructive" });
+    } finally {
+      setTranslatingIdx(null);
     }
   };
 
@@ -305,14 +419,33 @@ const Chat = () => {
     r.start();
   };
 
+  // ─── Feedback ───
+  const handleFeedback = async (helpful: boolean) => {
+    if (!user || !prevConvRef.current) return;
+    await supabase.from("feedback").insert({
+      user_id: user.id,
+      conversation_id: prevConvRef.current,
+      helpful,
+    });
+    setShowFeedback(false);
+    toast({ title: "Thanks for your feedback!" });
+  };
+
+  // ─── PDF Export ───
+  const handleExportPdf = () => {
+    if (messages.length === 0) return;
+    generateChatPdf(messages, `Chat Export - ${new Date().toLocaleDateString()}`);
+    trackEvent("pdf_export");
+  };
+
   const SafetyMeter = ({ safety }: { safety: { score: number; level: string; flags: string[] } }) => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mt-3">
       <div className="flex items-center gap-2">
-        {safety.level === "safe" && <ShieldCheck className="h-5 w-5 text-green-500" />}
-        {safety.level === "caution" && <Shield className="h-5 w-5 text-yellow-500" />}
-        {safety.level === "danger" && <ShieldAlert className="h-5 w-5 text-red-500" />}
+        {safety.level === "safe" && <ShieldCheck className="h-5 w-5 text-neon-green" />}
+        {safety.level === "caution" && <Shield className="h-5 w-5 text-neon-yellow" />}
+        {safety.level === "danger" && <ShieldAlert className="h-5 w-5 text-destructive" />}
         <span className={`text-sm font-medium ${
-          safety.level === "safe" ? "text-green-500" : safety.level === "caution" ? "text-yellow-500" : "text-red-500"
+          safety.level === "safe" ? "text-neon-green" : safety.level === "caution" ? "text-neon-yellow" : "text-destructive"
         }`}>
           Safety: {safety.score}% — {safety.level === "safe" ? "Safe" : safety.level === "caution" ? "Caution" : "Dangerous"}
         </span>
@@ -323,7 +456,7 @@ const Chat = () => {
           animate={{ width: `${safety.score}%` }}
           transition={{ duration: 0.8 }}
           className={`h-full rounded-full ${
-            safety.level === "safe" ? "bg-green-500" : safety.level === "caution" ? "bg-yellow-500" : "bg-red-500"
+            safety.level === "safe" ? "bg-neon-green" : safety.level === "caution" ? "bg-neon-yellow" : "bg-destructive"
           }`}
         />
       </div>
@@ -339,25 +472,16 @@ const Chat = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] max-w-4xl mx-auto">
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf"
-        className="hidden"
-        onChange={(e) => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); }}
-      />
+      {/* Hidden file inputs */}
+      <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); }} />
+      <input ref={multiFileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length === 2) handleMultiUpload(e.target.files); }} />
 
-      {/* ─── Upload Modal ─── */}
+      {/* Upload Modal */}
       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
         <DialogContent className="glass-strong border-border/30">
-          <DialogHeader>
-            <DialogTitle>Upload Document</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Upload Document</DialogTitle></DialogHeader>
           <div
-            className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-              dragOver ? "border-primary bg-primary/5" : "border-border/50"
-            }`}
+            className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragOver ? "border-primary bg-primary/5" : "border-border/50"}`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
@@ -373,39 +497,35 @@ const Chat = () => {
               <>
                 <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm font-medium mb-1">Drag & drop your PDF here</p>
-                <p className="text-xs text-muted-foreground mb-4">or click to browse (up to 30MB)</p>
-                <Button onClick={() => fileInputRef.current?.click()} variant="outline">
-                  <FileText className="h-4 w-4 mr-2" /> Choose PDF
-                </Button>
+                <p className="text-xs text-muted-foreground mb-4">Drop 2 PDFs for comparison · up to 30MB each</p>
+                <div className="flex gap-2 justify-center">
+                  <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                    <FileText className="h-4 w-4 mr-2" /> Single PDF
+                  </Button>
+                  <Button onClick={() => multiFileInputRef.current?.click()} variant="outline">
+                    <FilePlus2 className="h-4 w-4 mr-2" /> Compare 2 PDFs
+                  </Button>
+                </div>
               </>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* ─── URL Modal ─── */}
+      {/* URL Modal */}
       <Dialog open={showUrlModal} onOpenChange={setShowUrlModal}>
         <DialogContent className="glass-strong border-border/30">
-          <DialogHeader>
-            <DialogTitle>Paste URL</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Paste URL</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex gap-2">
-              <Input
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                placeholder="https://example.com/article"
-                className="flex-1"
-                onKeyDown={(e) => e.key === "Enter" && handleUrlSubmit()}
-              />
+              <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/article" className="flex-1" onKeyDown={(e) => e.key === "Enter" && handleUrlSubmit()} />
               <Button onClick={handleUrlSubmit} disabled={!urlInput.trim() || isScrapingUrl}>
                 {isScrapingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
               </Button>
             </div>
             {isScrapingUrl && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Checking safety & scraping content...
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking safety & scraping content...
               </motion.div>
             )}
             {urlSafety && <SafetyMeter safety={urlSafety} />}
@@ -413,7 +533,10 @@ const Chat = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ─── Messages ─── */}
+      {/* Feedback Modal */}
+      <FeedbackModal open={showFeedback} onClose={() => setShowFeedback(false)} onFeedback={handleFeedback} />
+
+      {/* Messages */}
       <div className="flex-1 overflow-auto space-y-4 py-4 px-2">
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -424,7 +547,7 @@ const Chat = () => {
             <p className="text-muted-foreground text-sm max-w-md mb-6">
               Ask questions, upload documents, or paste a URL to start researching.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap justify-center">
               <Button variant="outline" className="gap-2" onClick={() => setShowUploadModal(true)}>
                 <Upload className="h-4 w-4" /> Upload PDF
               </Button>
@@ -436,34 +559,34 @@ const Chat = () => {
         )}
 
         {messages.map((msg, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground rounded-br-md"
-                  : "glass border-border/30 rounded-bl-md"
-              }`}
-            >
+          <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+              msg.role === "user" ? "bg-primary text-primary-foreground rounded-br-md" : "glass border-border/30 rounded-bl-md"
+            }`}>
               {msg.role === "assistant" ? (
                 <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
-              ) : (
-                msg.content
-              )}
+              ) : msg.content}
               {msg.role === "assistant" && msg.content && (
                 <div className="flex gap-1 mt-2 pt-2 border-t border-border/20">
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleTTS(msg.content)}>
                     <Volume2 className="h-3 w-3" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowTranslation(!showTranslation)}>
-                    <Languages className="h-3 w-3" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" disabled={translatingIdx === i}>
+                        {translatingIdx === i ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {LANGUAGES.map((lang) => (
+                        <DropdownMenuItem key={lang.value} onClick={() => handleTranslate(i, lang.value)}>
+                          {lang.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               )}
             </div>
@@ -480,7 +603,7 @@ const Chat = () => {
         <div ref={bottomRef} />
       </div>
 
-      {/* ─── Input ─── */}
+      {/* Input */}
       <div className="glass-strong rounded-2xl p-3 border-border/30">
         {documentContext && (
           <div className="flex items-center gap-2 mb-2 px-2">
@@ -498,13 +621,14 @@ const Chat = () => {
           <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={() => setShowUrlModal(true)}>
             <Link2 className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost" size="icon"
-            className={`shrink-0 ${isListening ? "text-destructive animate-pulse" : "text-muted-foreground"}`}
-            onClick={handleSTT}
-          >
+          <Button variant="ghost" size="icon" className={`shrink-0 ${isListening ? "text-destructive animate-pulse" : "text-muted-foreground"}`} onClick={handleSTT}>
             <Mic className="h-4 w-4" />
           </Button>
+          {messages.length > 0 && (
+            <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={handleExportPdf} title="Export as PDF">
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
