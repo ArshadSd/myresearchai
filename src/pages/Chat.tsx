@@ -439,33 +439,29 @@ const Chat = () => {
     trackEvent("pdf_export");
   };
 
+  const isSafeUrl = urlSafety && urlSafety.score >= 90;
+
   const SafetyMeter = ({ safety }: { safety: { score: number; level: string; flags: string[] } }) => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mt-3">
-      <div className="flex items-center gap-2">
-        {safety.level === "safe" && <ShieldCheck className="h-5 w-5 text-neon-green" />}
-        {safety.level === "caution" && <Shield className="h-5 w-5 text-neon-yellow" />}
-        {safety.level === "danger" && <ShieldAlert className="h-5 w-5 text-destructive" />}
-        <span className={`text-sm font-medium ${
-          safety.level === "safe" ? "text-neon-green" : safety.level === "caution" ? "text-neon-yellow" : "text-destructive"
-        }`}>
-          Safety: {safety.score}% — {safety.level === "safe" ? "Safe" : safety.level === "caution" ? "Caution" : "Dangerous"}
-        </span>
-      </div>
-      <div className="h-2 rounded-full bg-secondary overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${safety.score}%` }}
-          transition={{ duration: 0.8 }}
-          className={`h-full rounded-full ${
-            safety.level === "safe" ? "bg-neon-green" : safety.level === "caution" ? "bg-neon-yellow" : "bg-destructive"
-          }`}
-        />
-      </div>
-      {safety.flags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {safety.flags.map((f, i) => (
-            <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">{f}</span>
-          ))}
+      {safety.score >= 90 ? (
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-neon-green" />
+          <span className="text-sm font-medium text-neon-green">✅ Safe — This URL looks safe to analyse</span>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-destructive" />
+            <span className="text-sm font-bold text-destructive">🚫 Malware URL — Unsafe to open</span>
+          </div>
+          {safety.flags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {safety.flags.map((f, i) => (
+                <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-destructive/10 text-destructive">{f}</span>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-destructive/80">This URL has been flagged as potentially dangerous. Do not open or analyse this link.</p>
         </div>
       )}
     </motion.div>
