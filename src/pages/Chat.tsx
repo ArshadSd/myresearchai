@@ -103,6 +103,7 @@ const Chat = () => {
   useEffect(() => {
     if (action === "upload") { setShowUploadModal(true); }
     if (action === "url") { setShowUrlModal(true); }
+    if (action === "compare") { setShowUploadModal(true); setTimeout(() => multiFileInputRef.current?.click(), 300); }
   }, [action]);
 
   const ensureConversation = async (title: string) => {

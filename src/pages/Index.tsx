@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Upload, Link2, FileText, Clock } from "lucide-react";
+import { Upload, Link2, FileText, Clock, GitCompareArrows } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,7 +34,7 @@ const Dashboard = () => {
       </motion.div>
 
       {/* Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card
             className="glass cursor-pointer group hover:neon-glow-cyan transition-all duration-300 border-border/50"
@@ -52,14 +52,31 @@ const Dashboard = () => {
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <Card
             className="glass cursor-pointer group hover:neon-glow-purple transition-all duration-300 border-border/50"
-            onClick={() => navigate("/chat?action=url")}
+            onClick={() => navigate("/chat?action=compare")}
           >
             <CardContent className="flex items-center gap-5 p-6">
               <div className="p-4 rounded-xl bg-accent/10 group-hover:bg-accent/20 transition-colors">
-                <Link2 className="h-7 w-7 text-accent" />
+                <GitCompareArrows className="h-7 w-7 text-accent" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Compare 2 PDFs</h3>
+                <p className="text-sm text-muted-foreground">Upload 2 documents for comparison</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Card
+            className="glass cursor-pointer group hover:neon-glow-cyan transition-all duration-300 border-border/50"
+            onClick={() => navigate("/chat?action=url")}
+          >
+            <CardContent className="flex items-center gap-5 p-6">
+              <div className="p-4 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                <Link2 className="h-7 w-7 text-primary" />
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Paste URL</h3>

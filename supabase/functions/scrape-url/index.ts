@@ -21,7 +21,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate URL format
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url.startsWith("http") ? url : `https://${url}`);
@@ -37,7 +36,7 @@ serve(async (req) => {
     const isSuspiciousTLD = suspiciousTLDs.some((tld) => parsedUrl.hostname.endsWith(tld));
     const hasIPAddress = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(parsedUrl.hostname);
     const hasExcessiveSubdomains = parsedUrl.hostname.split(".").length > 4;
-    const hasDeceptiveChars = /[а-яА-Я]/.test(parsedUrl.hostname); // Cyrillic lookalikes
+    const hasDeceptiveChars = /[а-яА-Я]/.test(parsedUrl.hostname);
 
     let safetyScore = 100;
     const safetyFlags: string[] = [];
@@ -48,21 +47,48 @@ serve(async (req) => {
     if (!parsedUrl.protocol.startsWith("https")) { safetyScore -= 15; safetyFlags.push("Not using HTTPS"); }
 
     const safetyLevel = safetyScore >= 80 ? "safe" : safetyScore >= 50 ? "caution" : "danger";
+    const safety = { score: safetyScore, level: safetyLevel, flags: safetyFlags };
 
-    // Fetch and extract content
-    const response = await fetch(parsedUrl.toString(), {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-      redirect: "follow",
-    });
+    // Try fetching with multiple User-Agent strategies to handle bot-blocking (418, 403, etc.)
+    const userAgents = [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    ];
 
-    if (!response.ok) {
+    let response: Response | null = null;
+    let lastStatus = 0;
+
+    for (const ua of userAgents) {
+      try {
+        const res = await fetch(parsedUrl.toString(), {
+          headers: {
+            "User-Agent": ua,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "identity",
+            "Cache-Control": "no-cache",
+          },
+          redirect: "follow",
+        });
+        lastStatus = res.status;
+        if (res.ok) {
+          response = res;
+          break;
+        }
+        // Consume body to free connection
+        await res.text();
+      } catch {
+        continue;
+      }
+    }
+
+    if (!response) {
       return new Response(
         JSON.stringify({
-          error: `Failed to fetch URL (${response.status})`,
-          safety: { score: safetyScore, level: safetyLevel, flags: safetyFlags },
+          success: false,
+          error: `This website blocked our request (HTTP ${lastStatus || "unknown"}). Some sites like IEEE, ScienceDirect, and other publishers restrict automated access. Try copying the article text and pasting it directly into the chat instead.`,
+          safety,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -98,6 +124,17 @@ serve(async (req) => {
       .replace(/\s+/g, " ")
       .trim();
 
+    if (text.length < 50) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Could not extract meaningful content from this page. The site may require login or use JavaScript rendering. Try copying the text and pasting it directly into the chat.",
+          safety,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -105,11 +142,7 @@ serve(async (req) => {
         description,
         text: text.slice(0, 80000),
         url: parsedUrl.toString(),
-        safety: {
-          score: safetyScore,
-          level: safetyLevel,
-          flags: safetyFlags,
-        },
+        safety,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
