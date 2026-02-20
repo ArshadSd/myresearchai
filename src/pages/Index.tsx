@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Upload, Link2, FileText, Clock } from "lucide-react";
+import { Upload, Link2, FileText, Clock, GitCompareArrows } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
