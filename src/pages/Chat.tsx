@@ -354,11 +354,13 @@ const Chat = () => {
         if (data.error) toast({ title: "Scrape failed", description: data.error, variant: "destructive" });
         return;
       }
-      if (data.safety?.level === "danger") {
-        toast({ title: "⚠️ Unsafe URL", description: "This URL is flagged as potentially dangerous", variant: "destructive" });
+      // If score < 90, block — show safety meter only, don't proceed
+      if (data.safety && data.safety.score < 90) {
+        toast({ title: "🚫 Unsafe URL", description: "This URL is flagged as malware — unsafe to open", variant: "destructive" });
         return;
       }
 
+      // Safe — auto-analyse
       setDocumentContext(data.text);
       setShowUrlModal(false);
       setUrlInput("");
