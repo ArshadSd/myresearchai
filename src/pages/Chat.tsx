@@ -693,7 +693,7 @@ const Chat = () => {
                 </div>
               ) : msg.content}
               {msg.role === "assistant" && msg.content && (
-                <div className="flex gap-1 mt-2 pt-2 border-t border-border/20">
+                <div className="flex gap-1 mt-2 pt-2 border-t border-border/20 items-center">
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleTTS(msg.content)}>
                     <Volume2 className="h-3 w-3" />
                   </Button>
@@ -711,6 +711,26 @@ const Chat = () => {
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <div className="ml-auto flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-6 w-6 ${feedbackGiven[i] === "up" ? "text-green-500" : "text-muted-foreground"}`}
+                      onClick={() => handleMsgFeedback(i, true)}
+                      disabled={!!feedbackGiven[i]}
+                    >
+                      <ThumbsUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-6 w-6 ${feedbackGiven[i] === "down" ? "text-destructive" : "text-muted-foreground"}`}
+                      onClick={() => handleMsgFeedback(i, false)}
+                      disabled={!!feedbackGiven[i]}
+                    >
+                      <ThumbsDown className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
