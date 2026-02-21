@@ -36,7 +36,6 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AppHelperBot />
-            </Routes>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
