@@ -585,10 +585,20 @@ const Chat = () => {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-4xl mx-auto">
+    <div
+      className="flex flex-col h-[calc(100vh-5rem)] max-w-4xl mx-auto"
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file?.type.startsWith("image/")) handleImageUpload(file);
+        else if (file?.name.endsWith(".pdf")) handleFileUpload(file);
+      }}
+    >
       {/* Hidden file inputs */}
       <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); }} />
       <input ref={multiFileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length === 2) handleMultiUpload(e.target.files); }} />
+      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleImageUpload(e.target.files[0]); }} />
 
       {/* Upload Modal */}
       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
