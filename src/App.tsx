@@ -35,6 +35,8 @@ const App = () => (
               <Route path="/documents" element={<ProtectedRoute><AppLayout><Documents /></AppLayout></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <AppHelperBot />
+            </Routes>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
