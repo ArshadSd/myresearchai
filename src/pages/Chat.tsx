@@ -765,8 +765,11 @@ const Chat = () => {
           <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={() => setShowUrlModal(true)}>
             <Link2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className={`shrink-0 ${isListening ? "text-destructive animate-pulse" : "text-muted-foreground"}`} onClick={handleSTT}>
+           <Button variant="ghost" size="icon" className={`shrink-0 ${isListening ? "text-destructive animate-pulse" : "text-muted-foreground"}`} onClick={handleSTT}>
             <Mic className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={() => imageInputRef.current?.click()} title="Upload image for analysis">
+            <ImageIcon className="h-4 w-4" />
           </Button>
           {messages.length > 0 && (
             <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={handleExportPdf} title="Export as PDF">
