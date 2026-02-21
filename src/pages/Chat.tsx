@@ -54,6 +54,8 @@ const Chat = () => {
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<number, "up" | "down">>({});
 
   // Upload states
   const [showUploadModal, setShowUploadModal] = useState(false);
