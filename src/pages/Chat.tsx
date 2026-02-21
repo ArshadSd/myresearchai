@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Brain, Loader2, Mic, Volume2, Paperclip, Link2, X,
   Upload, FileText, Shield, ShieldAlert, ShieldCheck, Languages,
-  Download, FilePlus2
+  Download, FilePlus2, ThumbsUp, ThumbsDown, Image as ImageIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +54,8 @@ const Chat = () => {
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const multiFileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<number, "up" | "down">>({});
 
   // Upload states
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -441,6 +443,119 @@ const Chat = () => {
     trackEvent("pdf_export");
   };
 
+  // ─── Image Upload & Analysis ───
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Too large", description: "Max 10MB for images", variant: "destructive" });
+      return;
+    }
+
+    const activeConvId = await ensureConversation(`🖼️ Image Analysis`);
+    if (!activeConvId) return;
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(",")[1];
+      const userMsg: Message = { role: "user", content: `[Uploaded image: ${file.name}] Analyze this image in detail.` };
+      setMessages((prev) => [...prev, userMsg]);
+      await saveMessage(userMsg);
+      setIsLoading(true);
+      trackEvent("image_analysis", { filename: file.name });
+
+      let assistantContent = "";
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const upsert = (chunk: string) => {
+        assistantContent += chunk;
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "assistant") {
+            return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantContent } : m));
+          }
+          return [...prev, { role: "assistant", content: assistantContent }];
+        });
+      };
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/chat-vision`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+          body: JSON.stringify({
+            messages: [...messages, userMsg],
+            imageBase64: base64,
+            imageMimeType: file.type,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          toast({ title: "Vision Error", description: data.error || "Failed", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+
+        const rdr = resp.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await rdr.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let idx: number;
+          while ((idx = buffer.indexOf("\n")) !== -1) {
+            let line = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 1);
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (json === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(json);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) upsert(content);
+            } catch { /* skip */ }
+          }
+        }
+
+        setIsLoading(false);
+        if (assistantContent) {
+          await saveMessage({ role: "assistant", content: assistantContent });
+        }
+      } catch (e: any) {
+        if (e.name !== "AbortError") {
+          setIsLoading(false);
+          toast({ title: "Error", description: "Image analysis failed", variant: "destructive" });
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ─── Per-message feedback ───
+  const handleMsgFeedback = async (msgIdx: number, helpful: boolean) => {
+    setFeedbackGiven((prev) => ({ ...prev, [msgIdx]: helpful ? "up" : "down" }));
+    if (user && conversationId) {
+      await supabase.from("feedback").insert({
+        user_id: user.id,
+        conversation_id: conversationId,
+        helpful,
+      });
+    }
+    toast({ title: helpful ? "Thanks! Glad it helped 👍" : "Thanks for the feedback 👎" });
+    trackEvent("message_feedback", { msgIdx, helpful });
+  };
+
   const isSafeUrl = urlSafety && urlSafety.score >= 90;
 
   const SafetyMeter = ({ safety }: { safety: { score: number; level: string; flags: string[] } }) => (
@@ -470,10 +585,20 @@ const Chat = () => {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] max-w-4xl mx-auto">
+    <div
+      className="flex flex-col h-[calc(100vh-5rem)] max-w-4xl mx-auto"
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file?.type.startsWith("image/")) handleImageUpload(file);
+        else if (file?.name.endsWith(".pdf")) handleFileUpload(file);
+      }}
+    >
       {/* Hidden file inputs */}
       <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]); }} />
       <input ref={multiFileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files && e.target.files.length === 2) handleMultiUpload(e.target.files); }} />
+      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleImageUpload(e.target.files[0]); }} />
 
       {/* Upload Modal */}
       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
@@ -568,7 +693,7 @@ const Chat = () => {
                 </div>
               ) : msg.content}
               {msg.role === "assistant" && msg.content && (
-                <div className="flex gap-1 mt-2 pt-2 border-t border-border/20">
+                <div className="flex gap-1 mt-2 pt-2 border-t border-border/20 items-center">
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleTTS(msg.content)}>
                     <Volume2 className="h-3 w-3" />
                   </Button>
@@ -586,6 +711,26 @@ const Chat = () => {
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  <div className="ml-auto flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-6 w-6 ${feedbackGiven[i] === "up" ? "text-green-500" : "text-muted-foreground"}`}
+                      onClick={() => handleMsgFeedback(i, true)}
+                      disabled={!!feedbackGiven[i]}
+                    >
+                      <ThumbsUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-6 w-6 ${feedbackGiven[i] === "down" ? "text-destructive" : "text-muted-foreground"}`}
+                      onClick={() => handleMsgFeedback(i, false)}
+                      disabled={!!feedbackGiven[i]}
+                    >
+                      <ThumbsDown className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -620,8 +765,11 @@ const Chat = () => {
           <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={() => setShowUrlModal(true)}>
             <Link2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className={`shrink-0 ${isListening ? "text-destructive animate-pulse" : "text-muted-foreground"}`} onClick={handleSTT}>
+           <Button variant="ghost" size="icon" className={`shrink-0 ${isListening ? "text-destructive animate-pulse" : "text-muted-foreground"}`} onClick={handleSTT}>
             <Mic className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={() => imageInputRef.current?.click()} title="Upload image for analysis">
+            <ImageIcon className="h-4 w-4" />
           </Button>
           {messages.length > 0 && (
             <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" onClick={handleExportPdf} title="Export as PDF">
