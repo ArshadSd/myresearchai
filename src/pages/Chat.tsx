@@ -443,6 +443,119 @@ const Chat = () => {
     trackEvent("pdf_export");
   };
 
+  // ─── Image Upload & Analysis ───
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Too large", description: "Max 10MB for images", variant: "destructive" });
+      return;
+    }
+
+    const activeConvId = await ensureConversation(`🖼️ Image Analysis`);
+    if (!activeConvId) return;
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(",")[1];
+      const userMsg: Message = { role: "user", content: `[Uploaded image: ${file.name}] Analyze this image in detail.` };
+      setMessages((prev) => [...prev, userMsg]);
+      await saveMessage(userMsg);
+      setIsLoading(true);
+      trackEvent("image_analysis", { filename: file.name });
+
+      let assistantContent = "";
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const upsert = (chunk: string) => {
+        assistantContent += chunk;
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "assistant") {
+            return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantContent } : m));
+          }
+          return [...prev, { role: "assistant", content: assistantContent }];
+        });
+      };
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/functions/v1/chat-vision`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+          body: JSON.stringify({
+            messages: [...messages, userMsg],
+            imageBase64: base64,
+            imageMimeType: file.type,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          toast({ title: "Vision Error", description: data.error || "Failed", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+
+        const rdr = resp.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await rdr.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let idx: number;
+          while ((idx = buffer.indexOf("\n")) !== -1) {
+            let line = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 1);
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (json === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(json);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) upsert(content);
+            } catch { /* skip */ }
+          }
+        }
+
+        setIsLoading(false);
+        if (assistantContent) {
+          await saveMessage({ role: "assistant", content: assistantContent });
+        }
+      } catch (e: any) {
+        if (e.name !== "AbortError") {
+          setIsLoading(false);
+          toast({ title: "Error", description: "Image analysis failed", variant: "destructive" });
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ─── Per-message feedback ───
+  const handleMsgFeedback = async (msgIdx: number, helpful: boolean) => {
+    setFeedbackGiven((prev) => ({ ...prev, [msgIdx]: helpful ? "up" : "down" }));
+    if (user && conversationId) {
+      await supabase.from("feedback").insert({
+        user_id: user.id,
+        conversation_id: conversationId,
+        helpful,
+      });
+    }
+    toast({ title: helpful ? "Thanks! Glad it helped 👍" : "Thanks for the feedback 👎" });
+    trackEvent("message_feedback", { msgIdx, helpful });
+  };
+
   const isSafeUrl = urlSafety && urlSafety.score >= 90;
 
   const SafetyMeter = ({ safety }: { safety: { score: number; level: string; flags: string[] } }) => (
