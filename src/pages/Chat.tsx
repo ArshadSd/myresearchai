@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Brain, Loader2, Mic, Volume2, Paperclip, Link2, X,
   Upload, FileText, Shield, ShieldAlert, ShieldCheck, Languages,
-  Download, FilePlus2
+  Download, FilePlus2, ThumbsUp, ThumbsDown, Image as ImageIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
