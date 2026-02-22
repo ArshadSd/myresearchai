@@ -130,6 +130,13 @@ const Analytics = () => {
     { icon: Flame, label: "Daily Streak", value: `${stats.streak}d`, color: "text-neon-yellow" },
     { icon: BarChart3, label: "Total Events", value: stats.events, color: "text-neon-green" },
     { icon: ThumbsUp, label: "Feedback Score", value: feedbackData.total > 0 ? `${feedbackData.ratio}%` : "N/A", color: "text-primary" },
+  ];
+
+  const pieData = feedbackData.total > 0 ? [
+    { name: "Helpful", value: feedbackData.helpful },
+    { name: "Not Helpful", value: feedbackData.notHelpful },
+  ] : [];
+  const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--destructive))"];
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
