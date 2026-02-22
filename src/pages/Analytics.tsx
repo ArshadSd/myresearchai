@@ -10,6 +10,8 @@ const Analytics = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({ docs: 0, chats: 0, events: 0, streak: 0 });
   const [chartData, setChartData] = useState<any[]>([]);
+  const [feedbackData, setFeedbackData] = useState({ total: 0, helpful: 0, notHelpful: 0, ratio: 0 });
+  const [feedbackTrend, setFeedbackTrend] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
