@@ -86,6 +86,39 @@ const Analytics = () => {
       }
 
       setChartData(last7);
+
+      // Fetch feedback data
+      const { data: feedbacks } = await supabase
+        .from("feedback")
+        .select("helpful, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (feedbacks && feedbacks.length > 0) {
+        const helpfulCount = feedbacks.filter((f) => f.helpful).length;
+        const notHelpfulCount = feedbacks.length - helpfulCount;
+        setFeedbackData({
+          total: feedbacks.length,
+          helpful: helpfulCount,
+          notHelpful: notHelpfulCount,
+          ratio: Math.round((helpfulCount / feedbacks.length) * 100),
+        });
+
+        // Build 7-day feedback trend
+        const trend = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dayStr = d.toDateString();
+          const day = d.toLocaleDateString("en", { weekday: "short" });
+          const dayFeedbacks = feedbacks.filter((f) => new Date(f.created_at).toDateString() === dayStr);
+          const up = dayFeedbacks.filter((f) => f.helpful).length;
+          const down = dayFeedbacks.length - up;
+          trend.push({ day, helpful: up, notHelpful: down });
+        }
+        setFeedbackTrend(trend);
+      }
     };
 
     fetchStats();
