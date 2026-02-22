@@ -129,7 +129,7 @@ const Analytics = () => {
     { icon: MessageSquare, label: "Chat Sessions", value: stats.chats, color: "text-accent" },
     { icon: Flame, label: "Daily Streak", value: `${stats.streak}d`, color: "text-neon-yellow" },
     { icon: BarChart3, label: "Total Events", value: stats.events, color: "text-neon-green" },
-  ];
+    { icon: ThumbsUp, label: "Feedback Score", value: feedbackData.total > 0 ? `${feedbackData.ratio}%` : "N/A", color: "text-primary" },
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
