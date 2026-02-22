@@ -36,9 +36,34 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = documentContext
+    // Fetch feedback stats to dynamically adjust system prompt
+    const userId = data.claims.sub;
+    const { data: feedbackStats } = await supabase
+      .from("feedback")
+      .select("helpful")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    let feedbackGuidance = "";
+    if (feedbackStats && feedbackStats.length >= 5) {
+      const total = feedbackStats.length;
+      const helpful = feedbackStats.filter((f: any) => f.helpful).length;
+      const ratio = helpful / total;
+      if (ratio < 0.5) {
+        feedbackGuidance = "\n\nIMPORTANT: Recent user feedback indicates your responses have not been meeting expectations. Please focus on: providing more concise answers, being more specific with citations, using clearer structure with bullet points and tables, and directly answering the question before adding context.";
+      } else if (ratio >= 0.8) {
+        feedbackGuidance = "\n\nNote: Users have found your recent responses very helpful. Continue with your current approach of thorough, well-structured analysis.";
+      } else {
+        feedbackGuidance = "\n\nNote: Some responses could be improved. Focus on clarity, directness, and structured formatting. Always lead with the key insight before elaborating.";
+      }
+    }
+
+    const basePrompt = documentContext
       ? `You are an expert AI Research Assistant. You help users analyze, summarize, and extract insights from research documents. You have been provided with the following document content to analyze:\n\n---\n${documentContext}\n---\n\nAnswer the user's questions based on this document. If the question is outside the document scope, let the user know and offer general assistance. Be thorough, cite relevant sections, and structure your responses clearly with headings and bullet points when appropriate.`
       : `You are an expert AI Research Assistant. You help users with research tasks including analyzing documents, answering questions, summarizing content, comparing papers, and generating insights. Be thorough, well-structured, and cite sources when available. Use headings, bullet points, and clear formatting in your responses.`;
+
+    const systemPrompt = basePrompt + feedbackGuidance;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",

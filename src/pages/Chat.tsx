@@ -550,6 +550,8 @@ const Chat = () => {
         user_id: user.id,
         conversation_id: conversationId,
         helpful,
+        message_content: messages[msgIdx]?.content?.slice(0, 500) || "",
+        message_index: msgIdx,
       });
     }
     toast({ title: helpful ? "Thanks! Glad it helped 👍" : "Thanks for the feedback 👎" });
