@@ -257,7 +257,7 @@ const Chat = () => {
       formData.append("file", file);
       const extractRes = await fetch(`${SUPABASE_URL}/functions/v1/extract-pdf`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+        headers: { Authorization: `Bearer ${await getAuthToken()}` },
         body: formData,
       });
       const extractData = await extractRes.json();
