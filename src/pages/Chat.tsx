@@ -49,6 +49,7 @@ const Chat = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [documentContext, setDocumentContext] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState<string | null>(null);
   const { toast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -86,9 +87,35 @@ const Chat = () => {
     });
   }, [user]);
 
+  // Load messages when conversation changes
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  // Restore document context when switching to a conversation that has a document
+  useEffect(() => {
+    if (!conversationId || !user) {
+      setDocumentContext(null);
+      setDocumentName(null);
+      return;
+    }
+    supabase
+      .from("documents")
+      .select("extracted_text, title")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0 && data[0].extracted_text) {
+          setDocumentContext(data[0].extracted_text);
+          setDocumentName(data[0].title);
+        } else {
+          setDocumentContext(null);
+          setDocumentName(null);
+        }
+      });
+  }, [conversationId, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -247,6 +274,7 @@ const Chat = () => {
 
       setUploadProgress(100);
       setDocumentContext(extractData.text);
+      setDocumentName(file.name);
       setShowUploadModal(false);
       trackEvent("document_upload", { filename: file.name });
 
@@ -629,7 +657,7 @@ const Chat = () => {
                     <FileText className="h-4 w-4 mr-2" /> Single PDF
                   </Button>
                   <Button onClick={() => multiFileInputRef.current?.click()} variant="outline">
-                    <FilePlus2 className="h-4 w-4 mr-2" /> Compare 2 PDFs
+                    <FilePlus2 className="h-4 w-4 mr-2" /> Compare 2 Documents
                   </Button>
                 </div>
               </>
@@ -754,8 +782,10 @@ const Chat = () => {
         {documentContext && (
           <div className="flex items-center gap-2 mb-2 px-2">
             <FileText className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs text-muted-foreground">Document context loaded</span>
-            <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={() => setDocumentContext(null)}>
+            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+              {documentName ? `📄 ${documentName}` : "Document context loaded"}
+            </span>
+            <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={() => { setDocumentContext(null); setDocumentName(null); }}>
               <X className="h-3 w-3" />
             </Button>
           </div>

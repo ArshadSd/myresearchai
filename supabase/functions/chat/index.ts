@@ -36,32 +36,40 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Fetch feedback stats to dynamically adjust system prompt
+    // Fetch feedback stats + negative examples to dynamically adjust system prompt
     const userId = data.claims.sub;
     const { data: feedbackStats } = await supabase
       .from("feedback")
-      .select("helpful")
+      .select("helpful, message_content")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(100);
 
     let feedbackGuidance = "";
-    if (feedbackStats && feedbackStats.length >= 5) {
+    if (feedbackStats && feedbackStats.length >= 3) {
       const total = feedbackStats.length;
       const helpful = feedbackStats.filter((f: any) => f.helpful).length;
       const ratio = helpful / total;
+
+      // Collect the most recent negative-feedback message samples to learn from
+      const badExamples = feedbackStats
+        .filter((f: any) => !f.helpful && f.message_content && f.message_content.trim().length > 20)
+        .slice(0, 5)
+        .map((f: any, i: number) => `Example ${i + 1}: "${f.message_content.slice(0, 300)}"`)
+        .join("\n");
+
       if (ratio < 0.5) {
-        feedbackGuidance = "\n\nIMPORTANT: Recent user feedback indicates your responses have not been meeting expectations. Please focus on: providing more concise answers, being more specific with citations, using clearer structure with bullet points and tables, and directly answering the question before adding context.";
+        feedbackGuidance = `\n\nIMPORTANT — FEEDBACK IMPROVEMENT REQUIRED: ${Math.round((1 - ratio) * 100)}% of your recent responses were rated unhelpful. You must improve significantly.\n\nPrevious responses the user found unhelpful:\n${badExamples || "(none recorded)"}\n\nLearn from these examples. Fix by: (1) directly answering the question first before any context, (2) being more precise and citing specific sections from the document, (3) using bullet points and tables for clarity, (4) avoiding vague or generic statements that don't address the user's specific question.`;
       } else if (ratio >= 0.8) {
-        feedbackGuidance = "\n\nNote: Users have found your recent responses very helpful. Continue with your current approach of thorough, well-structured analysis.";
+        feedbackGuidance = "\n\nNote: Users are finding your responses very helpful. Continue your current approach — thorough, well-structured, and specific.";
       } else {
-        feedbackGuidance = "\n\nNote: Some responses could be improved. Focus on clarity, directness, and structured formatting. Always lead with the key insight before elaborating.";
+        feedbackGuidance = `\n\nNote: Some responses could be improved. Be more direct and specific.\n${badExamples ? `Recent unhelpful responses to avoid repeating:\n${badExamples}` : ""}`;
       }
     }
 
     const basePrompt = documentContext
-      ? `You are an expert AI Research Assistant. You help users analyze, summarize, and extract insights from research documents. You have been provided with the following document content to analyze:\n\n---\n${documentContext}\n---\n\nAnswer the user's questions based on this document. If the question is outside the document scope, let the user know and offer general assistance. Be thorough, cite relevant sections, and structure your responses clearly with headings and bullet points when appropriate.`
-      : `You are an expert AI Research Assistant. You help users with research tasks including analyzing documents, answering questions, summarizing content, comparing papers, and generating insights. Be thorough, well-structured, and cite sources when available. Use headings, bullet points, and clear formatting in your responses.`;
+      ? `You are an expert AI Research Assistant specialized in deep document analysis. You have been given the following document to analyze:\n\n---DOCUMENT START---\n${documentContext}\n---DOCUMENT END---\n\nCRITICAL INSTRUCTIONS FOR DOCUMENT ANALYSIS:\n1. ALWAYS base your answers on the actual document content above. Read it carefully.\n2. When answering, cite the exact section or quote from the document.\n3. If a fact is NOT in the document, explicitly say "This is not mentioned in the document" — never guess.\n4. For comparisons or summaries, use structured tables and bullet points.\n5. Answer the SPECIFIC question asked — be precise, not generic.\n6. If numbers, statistics, or results are asked about, give the exact values from the document.`
+      : `You are an expert AI Research Assistant. You help users with research tasks: analyzing documents, answering questions precisely, summarizing content, comparing papers, and generating insights. Be thorough, well-structured, and always cite sources when available. Use headings, bullet points, and clear formatting.`;
 
     const systemPrompt = basePrompt + feedbackGuidance;
 

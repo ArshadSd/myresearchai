@@ -62,7 +62,7 @@ const Dashboard = () => {
                 <GitCompareArrows className="h-7 w-7 text-accent" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg">Compare 2 PDFs</h3>
+                <h3 className="font-semibold text-lg">Compare 2 Documents</h3>
                 <p className="text-sm text-muted-foreground">Upload 2 documents for comparison</p>
               </div>
             </CardContent>

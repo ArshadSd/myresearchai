@@ -17,11 +17,20 @@ export async function streamChat({
   onError: (error: string) => void;
   signal?: AbortSignal;
 }) {
+  // Use the real session token so the edge function can identify the user for feedback-based personalisation
+  const { createClient } = await import("@supabase/supabase-js");
+  const _supabase = createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  );
+  const { data: { session } } = await _supabase.auth.getSession();
+  const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
   const resp = await fetch(CHAT_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ messages, documentContext }),
     signal,
