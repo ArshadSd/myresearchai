@@ -520,7 +520,7 @@ const Chat = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_KEY}`,
+            Authorization: `Bearer ${await getAuthToken()}`,
           },
           body: JSON.stringify({
             messages: [...messages, userMsg],
