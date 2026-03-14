@@ -49,6 +49,7 @@ const Chat = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [documentContext, setDocumentContext] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState<string | null>(null);
   const { toast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -86,9 +87,35 @@ const Chat = () => {
     });
   }, [user]);
 
+  // Load messages when conversation changes
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  // Restore document context when switching to a conversation that has a document
+  useEffect(() => {
+    if (!conversationId || !user) {
+      setDocumentContext(null);
+      setDocumentName(null);
+      return;
+    }
+    supabase
+      .from("documents")
+      .select("extracted_text, title")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0 && data[0].extracted_text) {
+          setDocumentContext(data[0].extracted_text);
+          setDocumentName(data[0].title);
+        } else {
+          setDocumentContext(null);
+          setDocumentName(null);
+        }
+      });
+  }, [conversationId, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
