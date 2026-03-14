@@ -274,6 +274,7 @@ const Chat = () => {
 
       setUploadProgress(100);
       setDocumentContext(extractData.text);
+      setDocumentName(file.name);
       setShowUploadModal(false);
       trackEvent("document_upload", { filename: file.name });
 
