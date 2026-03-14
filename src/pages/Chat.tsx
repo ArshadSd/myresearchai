@@ -629,7 +629,7 @@ const Chat = () => {
                     <FileText className="h-4 w-4 mr-2" /> Single PDF
                   </Button>
                   <Button onClick={() => multiFileInputRef.current?.click()} variant="outline">
-                    <FilePlus2 className="h-4 w-4 mr-2" /> Compare 2 PDFs
+                    <FilePlus2 className="h-4 w-4 mr-2" /> Compare 2 Documents
                   </Button>
                 </div>
               </>
