@@ -25,7 +25,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+/** Always returns the current user's JWT — falls back to anon key only if no session */
+async function getAuthToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+}
 
 const LANGUAGES = [
   { value: "en", label: "English" },
@@ -252,7 +257,7 @@ const Chat = () => {
       formData.append("file", file);
       const extractRes = await fetch(`${SUPABASE_URL}/functions/v1/extract-pdf`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+        headers: { Authorization: `Bearer ${await getAuthToken()}` },
         body: formData,
       });
       const extractData = await extractRes.json();
@@ -318,7 +323,7 @@ const Chat = () => {
         formData.append("file", file);
         const extractRes = await fetch(`${SUPABASE_URL}/functions/v1/extract-pdf`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+          headers: { Authorization: `Bearer ${await getAuthToken()}` },
           body: formData,
         });
         const extractData = await extractRes.json();
@@ -374,7 +379,7 @@ const Chat = () => {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/scrape-url`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await getAuthToken()}` },
         body: JSON.stringify({ url: urlInput.trim() }),
       });
       const data = await res.json();
@@ -414,7 +419,7 @@ const Chat = () => {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/translate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_KEY}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await getAuthToken()}` },
         body: JSON.stringify({ text: messages[msgIdx].content, targetLang: lang }),
       });
       const data = await res.json();
@@ -515,7 +520,7 @@ const Chat = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_KEY}`,
+            Authorization: `Bearer ${await getAuthToken()}`,
           },
           body: JSON.stringify({
             messages: [...messages, userMsg],
