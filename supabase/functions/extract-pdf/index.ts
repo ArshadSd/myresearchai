@@ -52,64 +52,140 @@ serve(async (req) => {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
 
-    // Simple PDF text extraction - find text between BT and ET markers,
-    // and also extract text from stream objects
-    let extractedText = "";
-
     // Convert to string for parsing
     const decoder = new TextDecoder("latin1");
     const pdfContent = decoder.decode(bytes);
 
-    // Method 1: Extract text between parentheses in BT...ET blocks
+    // ── Method 1: Extract text from BT...ET blocks (standard PDF text objects) ──
+    let extractedText = "";
     const btEtRegex = /BT\s([\s\S]*?)ET/g;
     let match;
     while ((match = btEtRegex.exec(pdfContent)) !== null) {
       const block = match[1];
-      // Extract text in parentheses (Tj and TJ operators)
-      const textRegex = /\(([^)]*)\)/g;
-      let textMatch;
-      while ((textMatch = textRegex.exec(block)) !== null) {
-        const decoded = textMatch[1]
-          .replace(/\\n/g, "\n")
-          .replace(/\\r/g, "\r")
-          .replace(/\\t/g, "\t")
-          .replace(/\\\\/g, "\\")
-          .replace(/\\'/g, "'")
-          .replace(/\\"/g, '"');
-        extractedText += decoded;
+      // Handle Tj (single string) operator
+      const tjRegex = /\(([^)]*)\)\s*Tj/g;
+      let tjMatch;
+      while ((tjMatch = tjRegex.exec(block)) !== null) {
+        extractedText += decodeOctal(tjMatch[1]) + " ";
       }
-      extractedText += "\n";
+      // Handle TJ (array of strings) operator — handles kerning pairs
+      const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
+      let arrMatch;
+      while ((arrMatch = tjArrayRegex.exec(block)) !== null) {
+        const inner = arrMatch[1];
+        const strRegex = /\(([^)]*)\)/g;
+        let sMatch;
+        while ((sMatch = strRegex.exec(inner)) !== null) {
+          extractedText += decodeOctal(sMatch[1]);
+        }
+        extractedText += " ";
+      }
+      // Handle TD / T* / Td operators as line breaks
+      if (/T[Dd*]/.test(block)) extractedText += "\n";
     }
 
-    // Method 2: If no text found, try to find readable ASCII sequences
+    // ── Method 2: Extract from streams that contain readable text ──
+    if (extractedText.trim().length < 100) {
+      const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+      let streamMatch;
+      while ((streamMatch = streamRegex.exec(pdfContent)) !== null) {
+        const streamContent = streamMatch[1];
+        // Only process if stream looks like it has text operators (not compressed)
+        if (/BT|Tj|TJ/.test(streamContent)) {
+          const btBlocks = streamContent.match(/BT[\s\S]*?ET/g) || [];
+          for (const block of btBlocks) {
+            const tjR = /\(([^)]*)\)\s*Tj/g;
+            let m;
+            while ((m = tjR.exec(block)) !== null) extractedText += decodeOctal(m[1]) + " ";
+            const tjAR = /\[([^\]]*)\]\s*TJ/g;
+            while ((m = tjAR.exec(block)) !== null) {
+              const sR = /\(([^)]*)\)/g;
+              let sm;
+              while ((sm = sR.exec(m[1])) !== null) extractedText += decodeOctal(sm[1]);
+              extractedText += " ";
+            }
+          }
+        }
+      }
+    }
+
+    // ── Method 3: Fallback — readable ASCII sequences ──
     if (extractedText.trim().length < 50) {
       const asciiRegex = /[\x20-\x7E]{20,}/g;
       const asciiMatches = pdfContent.match(asciiRegex) || [];
       const filtered = asciiMatches.filter(
-        (s) => !s.includes("/") && !s.includes("<<") && !s.startsWith("stream")
+        (s) =>
+          !s.includes("/") &&
+          !s.includes("<<") &&
+          !s.startsWith("stream") &&
+          !s.startsWith("%PDF") &&
+          !/^[0-9\s.]+$/.test(s)
       );
       if (filtered.length > 0) {
         extractedText = filtered.join("\n");
       }
     }
 
-    // Clean up
+    // ── Clean up ──
     extractedText = extractedText
       .replace(/\x00/g, "")
       .replace(/[^\x20-\x7E\n\r\t]/g, " ")
-      .replace(/\s{3,}/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]{3,}/g, "  ")
+      .replace(/\n{4,}/g, "\n\n")
       .trim();
 
+    const hasGoodText = extractedText.length >= 100 && /[a-zA-Z]{3,}/.test(extractedText);
+
+    // ── Method 4: If still poor, use AI to read the raw content ──
+    if (!hasGoodText) {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (LOVABLE_API_KEY) {
+        // Send a sample of the raw PDF for AI-assisted extraction
+        const rawSample = pdfContent.slice(0, 60000);
+        try {
+          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are a PDF text extractor. The user will provide raw PDF byte content (latin1-decoded). Extract ALL readable text from it, preserving the logical reading order, headings, paragraphs and lists. Output ONLY the extracted text — no commentary, no preamble.",
+                },
+                {
+                  role: "user",
+                  content: `Extract all readable text from this PDF content:\n\n${rawSample}`,
+                },
+              ],
+              stream: false,
+            }),
+          });
+          if (aiResp.ok) {
+            const aiData = await aiResp.json();
+            const aiText = aiData.choices?.[0]?.message?.content || "";
+            if (aiText.length > 50) {
+              extractedText = aiText;
+            }
+          }
+        } catch (_e) {
+          // AI fallback failed, continue with what we have
+        }
+      }
+    }
+
     if (!extractedText || extractedText.length < 10) {
-      // Use AI to describe what we found
-      extractedText = `[PDF uploaded: ${file.name}, ${(file.size / 1024).toFixed(1)}KB. Text extraction produced limited results - this PDF may contain scanned images. You can still ask questions and I'll do my best to help based on the file metadata.]`;
+      extractedText = `[PDF uploaded: ${file.name}, ${(file.size / 1024).toFixed(1)}KB. Text extraction produced limited results — this PDF may be scanned/image-based. You can still ask questions and I will describe what I can infer from the file metadata.]`;
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        text: extractedText.slice(0, 100000), // Cap at 100k chars
+        text: extractedText.slice(0, 120000),
         fileName: file.name,
         fileSize: file.size,
       }),
@@ -123,3 +199,15 @@ serve(async (req) => {
     );
   }
 });
+
+/** Decode PDF octal escape sequences like \101 → 'A' */
+function decodeOctal(s: string): string {
+  return s
+    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\r")
+    .replace(/\\t/g, "\t")
+    .replace(/\\\\/g, "\\")
+    .replace(/\\'/g, "'")
+    .replace(/\\"/g, '"');
+}
