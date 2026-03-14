@@ -25,7 +25,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+/** Always returns the current user's JWT — falls back to anon key only if no session */
+async function getAuthToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+}
 
 const LANGUAGES = [
   { value: "en", label: "English" },
