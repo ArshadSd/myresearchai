@@ -19,11 +19,13 @@ serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
     );
+
     const token = authHeader.replace("Bearer ", "");
     const { data, error: authError } = await supabase.auth.getClaims(token);
     if (authError || !data?.claims) {
@@ -52,134 +54,100 @@ serve(async (req) => {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
 
-    // Convert to string for parsing
-    const decoder = new TextDecoder("latin1");
-    const pdfContent = decoder.decode(bytes);
-
-    // ── Method 1: Extract text from BT...ET blocks (standard PDF text objects) ──
+    // ── Strategy 1: Use AI (Gemini) to read the PDF natively as a document ──
+    // Gemini supports inline PDF via multimodal — this gives the best results
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     let extractedText = "";
-    const btEtRegex = /BT\s([\s\S]*?)ET/g;
-    let match;
-    while ((match = btEtRegex.exec(pdfContent)) !== null) {
-      const block = match[1];
-      // Handle Tj (single string) operator
-      const tjRegex = /\(([^)]*)\)\s*Tj/g;
-      let tjMatch;
-      while ((tjMatch = tjRegex.exec(block)) !== null) {
-        extractedText += decodeOctal(tjMatch[1]) + " ";
-      }
-      // Handle TJ (array of strings) operator — handles kerning pairs
-      const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-      let arrMatch;
-      while ((arrMatch = tjArrayRegex.exec(block)) !== null) {
-        const inner = arrMatch[1];
-        const strRegex = /\(([^)]*)\)/g;
-        let sMatch;
-        while ((sMatch = strRegex.exec(inner)) !== null) {
-          extractedText += decodeOctal(sMatch[1]);
-        }
-        extractedText += " ";
-      }
-      // Handle TD / T* / Td operators as line breaks
-      if (/T[Dd*]/.test(block)) extractedText += "\n";
-    }
 
-    // ── Method 2: Extract from streams that contain readable text ──
-    if (extractedText.trim().length < 100) {
-      const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-      let streamMatch;
-      while ((streamMatch = streamRegex.exec(pdfContent)) !== null) {
-        const streamContent = streamMatch[1];
-        // Only process if stream looks like it has text operators (not compressed)
-        if (/BT|Tj|TJ/.test(streamContent)) {
-          const btBlocks = streamContent.match(/BT[\s\S]*?ET/g) || [];
-          for (const block of btBlocks) {
-            const tjR = /\(([^)]*)\)\s*Tj/g;
-            let m;
-            while ((m = tjR.exec(block)) !== null) extractedText += decodeOctal(m[1]) + " ";
-            const tjAR = /\[([^\]]*)\]\s*TJ/g;
-            while ((m = tjAR.exec(block)) !== null) {
-              const sR = /\(([^)]*)\)/g;
-              let sm;
-              while ((sm = sR.exec(m[1])) !== null) extractedText += decodeOctal(sm[1]);
-              extractedText += " ";
-            }
+    if (LOVABLE_API_KEY) {
+      // Convert PDF bytes to base64
+      const base64Pdf = btoa(String.fromCharCode(...bytes));
+
+      try {
+        const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Please extract ALL text content from this PDF document. Output ONLY the extracted text content in a clean, readable format. Preserve headings, paragraphs, lists, tables and their structure. Do NOT describe the PDF structure or metadata — only output the actual text content that a reader would see.",
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:application/pdf;base64,${base64Pdf}`,
+                    },
+                  },
+                ],
+              },
+            ],
+            stream: false,
+          }),
+        });
+
+        if (aiResp.ok) {
+          const aiData = await aiResp.json();
+          const aiText = aiData.choices?.[0]?.message?.content ?? "";
+          if (aiText.length > 50) {
+            extractedText = aiText;
           }
+        } else {
+          const errText = await aiResp.text();
+          console.error("AI extraction error:", aiResp.status, errText);
         }
+      } catch (aiErr) {
+        console.error("AI extraction threw:", aiErr);
       }
     }
 
-    // ── Method 3: Fallback — readable ASCII sequences ──
+    // ── Strategy 2: Fallback regex-based extraction if AI fails ──
     if (extractedText.trim().length < 50) {
-      const asciiRegex = /[\x20-\x7E]{20,}/g;
-      const asciiMatches = pdfContent.match(asciiRegex) || [];
-      const filtered = asciiMatches.filter(
-        (s) =>
-          !s.includes("/") &&
-          !s.includes("<<") &&
-          !s.startsWith("stream") &&
-          !s.startsWith("%PDF") &&
-          !/^[0-9\s.]+$/.test(s)
-      );
-      if (filtered.length > 0) {
-        extractedText = filtered.join("\n");
-      }
-    }
+      const decoder = new TextDecoder("latin1");
+      const pdfContent = decoder.decode(bytes);
 
-    // ── Clean up ──
-    extractedText = extractedText
-      .replace(/\x00/g, "")
-      .replace(/[^\x20-\x7E\n\r\t]/g, " ")
-      .replace(/[ \t]{3,}/g, "  ")
-      .replace(/\n{4,}/g, "\n\n")
-      .trim();
+      let fallback = "";
 
-    const hasGoodText = extractedText.length >= 100 && /[a-zA-Z]{3,}/.test(extractedText);
-
-    // ── Method 4: If still poor, use AI to read the raw content ──
-    if (!hasGoodText) {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (LOVABLE_API_KEY) {
-        // Send a sample of the raw PDF for AI-assisted extraction
-        const rawSample = pdfContent.slice(0, 60000);
-        try {
-          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    "You are a PDF text extractor. The user will provide raw PDF byte content (latin1-decoded). Extract ALL readable text from it, preserving the logical reading order, headings, paragraphs and lists. Output ONLY the extracted text — no commentary, no preamble.",
-                },
-                {
-                  role: "user",
-                  content: `Extract all readable text from this PDF content:\n\n${rawSample}`,
-                },
-              ],
-              stream: false,
-            }),
-          });
-          if (aiResp.ok) {
-            const aiData = await aiResp.json();
-            const aiText = aiData.choices?.[0]?.message?.content || "";
-            if (aiText.length > 50) {
-              extractedText = aiText;
-            }
-          }
-        } catch (_e) {
-          // AI fallback failed, continue with what we have
+      // BT...ET blocks with Tj / TJ operators
+      const btEtRegex = /BT\s([\s\S]*?)ET/g;
+      let match;
+      while ((match = btEtRegex.exec(pdfContent)) !== null) {
+        const block = match[1];
+        const tjRegex = /\(([^)]*)\)\s*Tj/g;
+        let m;
+        while ((m = tjRegex.exec(block)) !== null) fallback += decodeOctal(m[1]) + " ";
+        const tjArrRegex = /\[([^\]]*)\]\s*TJ/g;
+        while ((m = tjArrRegex.exec(block)) !== null) {
+          const sR = /\(([^)]*)\)/g;
+          let sm;
+          while ((sm = sR.exec(m[1])) !== null) fallback += decodeOctal(sm[1]);
+          fallback += " ";
         }
+        if (/T[Dd*]/.test(block)) fallback += "\n";
       }
+
+      // ASCII sequence fallback
+      if (fallback.trim().length < 50) {
+        const asciiMatches = pdfContent.match(/[\x20-\x7E]{20,}/g) || [];
+        const filtered = asciiMatches.filter(
+          (s) => !s.includes("/") && !s.includes("<<") && !s.startsWith("stream") && !s.startsWith("%PDF") && !/^[0-9\s.]+$/.test(s)
+        );
+        fallback = filtered.join("\n");
+      }
+
+      fallback = fallback.replace(/\x00/g, "").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").trim();
+      if (fallback.length > 50) extractedText = fallback;
     }
 
     if (!extractedText || extractedText.length < 10) {
-      extractedText = `[PDF uploaded: ${file.name}, ${(file.size / 1024).toFixed(1)}KB. Text extraction produced limited results — this PDF may be scanned/image-based. You can still ask questions and I will describe what I can infer from the file metadata.]`;
+      extractedText = `[PDF uploaded: ${file.name}, ${(file.size / 1024).toFixed(1)}KB. Text extraction produced limited results — this PDF may be scanned/image-based or password-protected. You can still ask questions and I will do my best to analyze the file.]`;
     }
 
     return new Response(
@@ -200,14 +168,9 @@ serve(async (req) => {
   }
 });
 
-/** Decode PDF octal escape sequences like \101 → 'A' */
 function decodeOctal(s: string): string {
   return s
     .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\r")
-    .replace(/\\t/g, "\t")
-    .replace(/\\\\/g, "\\")
-    .replace(/\\'/g, "'")
-    .replace(/\\"/g, '"');
+    .replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t")
+    .replace(/\\\\/g, "\\").replace(/\\'/g, "'").replace(/\\"/g, '"');
 }
