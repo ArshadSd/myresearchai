@@ -781,8 +781,10 @@ const Chat = () => {
         {documentContext && (
           <div className="flex items-center gap-2 mb-2 px-2">
             <FileText className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs text-muted-foreground">Document context loaded</span>
-            <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={() => setDocumentContext(null)}>
+            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+              {documentName ? `📄 ${documentName}` : "Document context loaded"}
+            </span>
+            <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto" onClick={() => { setDocumentContext(null); setDocumentName(null); }}>
               <X className="h-3 w-3" />
             </Button>
           </div>
