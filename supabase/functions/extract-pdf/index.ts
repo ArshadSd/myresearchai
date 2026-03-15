@@ -60,8 +60,8 @@ serve(async (req) => {
     let extractedText = "";
 
     if (LOVABLE_API_KEY) {
-      // Convert PDF bytes to base64
-      const base64Pdf = btoa(String.fromCharCode(...bytes));
+      // Convert PDF bytes to base64 in chunks to avoid call stack overflow
+      const base64Pdf = arrayBufferToBase64(arrayBuffer);
 
       try {
         const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
