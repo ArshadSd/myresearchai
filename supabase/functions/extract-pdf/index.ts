@@ -60,8 +60,8 @@ serve(async (req) => {
     let extractedText = "";
 
     if (LOVABLE_API_KEY) {
-      // Convert PDF bytes to base64
-      const base64Pdf = btoa(String.fromCharCode(...bytes));
+      // Convert PDF bytes to base64 in chunks to avoid call stack overflow
+      const base64Pdf = arrayBufferToBase64(arrayBuffer);
 
       try {
         const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -173,4 +173,19 @@ function decodeOctal(s: string): string {
     .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
     .replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t")
     .replace(/\\\\/g, "\\").replace(/\\'/g, "'").replace(/\\"/g, '"');
+}
+
+// Process in 8KB chunks to avoid "Maximum call stack size exceeded"
+// when spreading large Uint8Arrays into String.fromCharCode()
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
+  }
+  return btoa(binary);
 }
