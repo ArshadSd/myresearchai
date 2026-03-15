@@ -174,3 +174,18 @@ function decodeOctal(s: string): string {
     .replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t")
     .replace(/\\\\/g, "\\").replace(/\\'/g, "'").replace(/\\"/g, '"');
 }
+
+// Process in 8KB chunks to avoid "Maximum call stack size exceeded"
+// when spreading large Uint8Arrays into String.fromCharCode()
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
+  }
+  return btoa(binary);
+}
