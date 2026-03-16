@@ -34,10 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, displayName?: string) => {
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const publishedUrl = "https://myresearchai.lovable.app";
-    const redirectTo = window.location.hostname.includes("lovable.app")
-      ? publishedUrl
-      : window.location.origin;
+    const redirectTo = isLocal
+      ? "http://localhost:5143"
+      : window.location.hostname.includes("lovable.app")
+        ? publishedUrl
+        : window.location.origin;
     const { error } = await supabase.auth.signUp({
       email,
       password,
