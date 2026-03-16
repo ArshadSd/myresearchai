@@ -165,7 +165,18 @@ const Chat = () => {
 
     const userMsg: Message = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
-    await saveMessage(userMsg);
+
+    // Save with the resolved activeConvId directly (not the stale conversationId from closure)
+    if (user) {
+      await supabase.from("messages").insert({
+        conversation_id: activeConvId,
+        user_id: user.id,
+        role: userMsg.role,
+        content: userMsg.content,
+      });
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", activeConvId);
+    }
+
     setIsLoading(true);
     trackEvent("chat_message");
 
@@ -188,6 +199,14 @@ const Chat = () => {
       }
     }
 
+    // Fetch full history from DB to ensure context is never stale
+    const { data: historyRows } = await supabase
+      .from("messages")
+      .select("role, content")
+      .eq("conversation_id", activeConvId)
+      .order("created_at", { ascending: true });
+    const historyForAI: Message[] = (historyRows as Message[]) || [...messages, userMsg];
+
     const upsert = (chunk: string) => {
       assistantContent += chunk;
       setMessages((prev) => {
@@ -201,13 +220,19 @@ const Chat = () => {
 
     try {
       await streamChat({
-        messages: [...messages, userMsg],
+        messages: historyForAI,
         documentContext: domainCtx,
         onDelta: upsert,
         onDone: async () => {
           setIsLoading(false);
-          if (assistantContent) {
-            await saveMessage({ role: "assistant", content: assistantContent });
+          if (assistantContent && user) {
+            await supabase.from("messages").insert({
+              conversation_id: activeConvId,
+              user_id: user.id,
+              role: "assistant",
+              content: assistantContent,
+            });
+            await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", activeConvId);
           }
         },
         onError: (err) => {
