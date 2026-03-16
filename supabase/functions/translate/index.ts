@@ -68,8 +68,8 @@ serve(async (req) => {
       });
     }
 
-    const data = await response.json();
-    const translated = data.choices?.[0]?.message?.content || "";
+    const result = await response.json();
+    const translated = result.choices?.[0]?.message?.content || "";
 
     return new Response(JSON.stringify({ success: true, translated }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
