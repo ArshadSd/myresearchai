@@ -34,6 +34,7 @@ const Auth = () => {
     } finally {
       setGoogleLoading(false);
     }
+  };
 
   const handleAppleSignIn = async () => {
     setAppleLoading(true);
