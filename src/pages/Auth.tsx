@@ -179,10 +179,6 @@ const Auth = () => {
                 </>
               )}
 
-              <div style={{ display: "none" }}>{/* spacer */}</div>
-              <form style={{ display: "none" }}>
-              </form>
-
               <div className="mt-6 text-center text-sm">
                 {mode === "login" && (
                   <>
