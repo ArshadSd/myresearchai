@@ -11,3 +11,7 @@ verify_jwt = false
 
 [functions.translate]
 verify_jwt = false
+
+[functions.scheduler-ai]
+verify_jwt = false
+
