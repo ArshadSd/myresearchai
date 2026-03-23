@@ -215,6 +215,133 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduler_days: {
+        Row: {
+          content: string
+          created_at: string
+          day_number: number
+          id: string
+          is_completed: boolean
+          is_unlocked: boolean
+          outcomes: string[]
+          questions_attempted: number
+          questions_correct: number
+          scheduler_id: string
+          title: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          day_number: number
+          id?: string
+          is_completed?: boolean
+          is_unlocked?: boolean
+          outcomes?: string[]
+          questions_attempted?: number
+          questions_correct?: number
+          scheduler_id: string
+          title?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          day_number?: number
+          id?: string
+          is_completed?: boolean
+          is_unlocked?: boolean
+          outcomes?: string[]
+          questions_attempted?: number
+          questions_correct?: number
+          scheduler_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduler_days_scheduler_id_fkey"
+            columns: ["scheduler_id"]
+            isOneToOne: false
+            referencedRelation: "schedulers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduler_questions: {
+        Row: {
+          correct_answer: number
+          created_at: string
+          id: string
+          options: Json
+          question: string
+          scheduler_day_id: string
+          user_answer: number | null
+        }
+        Insert: {
+          correct_answer: number
+          created_at?: string
+          id?: string
+          options?: Json
+          question: string
+          scheduler_day_id: string
+          user_answer?: number | null
+        }
+        Update: {
+          correct_answer?: number
+          created_at?: string
+          id?: string
+          options?: Json
+          question?: string
+          scheduler_day_id?: string
+          user_answer?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduler_questions_scheduler_day_id_fkey"
+            columns: ["scheduler_day_id"]
+            isOneToOne: false
+            referencedRelation: "scheduler_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedulers: {
+        Row: {
+          created_at: string
+          current_day: number
+          id: string
+          is_completed: boolean
+          streak: number
+          subject: string
+          topics: string | null
+          total_days: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_day?: number
+          id?: string
+          is_completed?: boolean
+          streak?: number
+          subject: string
+          topics?: string | null
+          total_days: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_day?: number
+          id?: string
+          is_completed?: boolean
+          streak?: number
+          subject?: string
+          topics?: string | null
+          total_days?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
