@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, MessageSquare, FileText, BarChart3, User, LogOut,
   Plus, ChevronLeft, ChevronRight, Brain, MoreHorizontal,
-  Pin, Star, Tag, Trash2
+  Pin, Star, Tag, Trash2, CalendarDays
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
