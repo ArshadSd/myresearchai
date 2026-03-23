@@ -14,6 +14,7 @@ import Chat from "./pages/Chat";
 import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
 import Documents from "./pages/Documents";
+import Scheduler from "./pages/Scheduler";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

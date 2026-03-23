@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { icon: Home, label: "Dashboard", path: "/" },
+  { icon: CalendarDays, label: "Scheduler", path: "/scheduler" },
   { icon: FileText, label: "Documents", path: "/documents" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: User, label: "Profile", path: "/profile" },
