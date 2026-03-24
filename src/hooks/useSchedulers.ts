@@ -199,5 +199,5 @@ export function useSchedulerDetail(schedulerId: string) {
     return unlock;
   };
 
-  return { scheduler, days, loading, upsertDay, updateScheduler, saveQuestions, submitQuizAnswer, completeDay, refetch: fetchAll };
+  return { scheduler, days, loading, upsertDay, updateScheduler, saveQuestions, submitQuizAnswer, completeDay, unlockDay, refetch: fetchAll };
 }
