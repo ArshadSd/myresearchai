@@ -153,6 +153,17 @@ export function useSchedulerDetail(schedulerId: string) {
     if (error) throw error;
   };
 
+  /** Unlock a specific day number (used for calendar-day-change unlock) */
+  const unlockDay = async (dayNumber: number) => {
+    if (!scheduler) return;
+    await supabase.from("scheduler_days")
+      .upsert(
+        { scheduler_id: schedulerId, day_number: dayNumber, is_unlocked: true },
+        { onConflict: "scheduler_id,day_number" }
+      );
+    await fetchAll();
+  };
+
   const completeDay = async (dayId: string, correct: number, attempted: number) => {
     if (!scheduler) return;
     const unlock = correct >= 3;
@@ -160,19 +171,21 @@ export function useSchedulerDetail(schedulerId: string) {
 
     // Update current day
     await supabase.from("scheduler_days").update({
-      is_completed: unlock,
+      is_completed: true,
       questions_correct: correct,
       questions_attempted: attempted,
     }).eq("id", dayId);
 
+    // Always unlock next day on completion (quiz passed) 
+    if (unlock && nextDay <= scheduler.total_days) {
+      await supabase.from("scheduler_days")
+        .upsert(
+          { scheduler_id: schedulerId, day_number: nextDay, is_unlocked: true },
+          { onConflict: "scheduler_id,day_number" }
+        );
+    }
+
     if (unlock) {
-      // Unlock next day
-      if (nextDay <= scheduler.total_days) {
-        await supabase.from("scheduler_days")
-          .update({ is_unlocked: true })
-          .eq("scheduler_id", schedulerId)
-          .eq("day_number", nextDay);
-      }
       const newStreak = scheduler.streak + 1;
       const isCompleted = nextDay > scheduler.total_days;
       await supabase.from("schedulers").update({
