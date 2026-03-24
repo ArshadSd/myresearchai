@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function SchedulerDetail({ schedulerId, onBack }: Props) {
-  const { scheduler, days, loading, upsertDay, saveQuestions, completeDay, refetch } = useSchedulerDetail(schedulerId);
+  const { scheduler, days, loading, upsertDay, saveQuestions, completeDay, unlockDay, refetch } = useSchedulerDetail(schedulerId);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [generatingDay, setGeneratingDay] = useState<number | null>(null);
   const [quizDay, setQuizDay] = useState<SchedulerDay | null>(null);
@@ -30,6 +30,24 @@ export function SchedulerDetail({ schedulerId, onBack }: Props) {
     const day1 = days.find(d => d.day_number === 1);
     if (day1 && !day1.is_unlocked) {
       upsertDay({ scheduler_id: schedulerId, day_number: 1, is_unlocked: true, title: day1.title, content: day1.content, outcomes: day1.outcomes });
+    }
+  }, [scheduler?.id, days.length]);
+
+  // Calendar-day-change unlock: unlock next day if the calendar date has advanced since scheduler creation
+  useEffect(() => {
+    if (!scheduler || days.length === 0) return;
+    const createdDate = new Date(scheduler.created_at);
+    createdDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysPassed = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+    // daysPassed=0 means day 1 is active; daysPassed=1 means day 2 should be unlocked, etc.
+    const maxUnlockable = Math.min(daysPassed + 1, scheduler.total_days); // 1-indexed max day to unlock
+    for (let d = 1; d <= maxUnlockable; d++) {
+      const dayData = days.find(x => x.day_number === d);
+      if (!dayData || !dayData.is_unlocked) {
+        unlockDay(d);
+      }
     }
   }, [scheduler?.id, days.length]);
 
