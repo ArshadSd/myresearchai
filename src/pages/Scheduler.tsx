@@ -42,7 +42,7 @@ export default function Scheduler() {
           </p>
         </div>
         {schedulers.length > 0 && (
-          <Button onClick={() => setModalOpen(true)} className="gap-2 neon-glow-cyan">
+          <Button onClick={() => setModalOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Journey
           </Button>
         )}
