@@ -622,8 +622,8 @@ const Chat = () => {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mt-3">
       {safety.score >= 90 ? (
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-neon-green" />
-          <span className="text-sm font-medium text-neon-green">✅ Safe — This URL looks safe to analyse</span>
+         <ShieldCheck className="h-5 w-5 text-green-500" />
+          <span className="text-sm font-medium text-green-500">✅ Safe — This URL looks safe to analyse</span>
         </div>
       ) : (
         <div className="space-y-2">
