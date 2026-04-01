@@ -71,7 +71,7 @@ const Dashboard = () => {
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card
-            className="glass cursor-pointer group hover:neon-glow-cyan transition-all duration-300 border-border/50"
+            className="glass cursor-pointer group hover:border-primary/50 transition-all duration-300 border-border/50"
             onClick={() => navigate("/chat?action=url")}
           >
             <CardContent className="flex items-center gap-5 p-6">

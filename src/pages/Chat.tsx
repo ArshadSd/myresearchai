@@ -724,7 +724,7 @@ const Chat = () => {
       <div className="flex-1 overflow-auto space-y-4 py-4 px-2">
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="p-4 rounded-2xl bg-primary/10 mb-4 neon-glow-cyan">
+            <div className="p-4 rounded-2xl bg-primary/10 mb-4">
               <Brain className="h-10 w-10 text-primary" />
             </div>
             <h2 className="text-xl font-semibold mb-2">How can I help?</h2>
