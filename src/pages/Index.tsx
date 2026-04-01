@@ -54,7 +54,7 @@ const Dashboard = () => {
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <Card
-            className="glass cursor-pointer group hover:neon-glow-purple transition-all duration-300 border-border/50"
+            className="glass cursor-pointer group hover:border-accent/50 transition-all duration-300 border-border/50"
             onClick={() => navigate("/chat?action=compare")}
           >
             <CardContent className="flex items-center gap-5 p-6">
