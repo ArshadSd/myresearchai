@@ -42,7 +42,7 @@ export default function Scheduler() {
           </p>
         </div>
         {schedulers.length > 0 && (
-          <Button onClick={() => setModalOpen(true)} className="gap-2 neon-glow-cyan">
+          <Button onClick={() => setModalOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" /> New Journey
           </Button>
         )}
@@ -69,7 +69,7 @@ export default function Scheduler() {
               Create a scheduler and let AI design a day-by-day progression. Earn your way forward by proving mastery — no skipping ahead.
             </p>
           </div>
-          <Button size="lg" onClick={() => setModalOpen(true)} className="gap-2 neon-glow-cyan px-8">
+          <Button size="lg" onClick={() => setModalOpen(true)} className="gap-2 px-8">
             <Plus className="h-5 w-5" /> Create Scheduler
           </Button>
         </motion.div>

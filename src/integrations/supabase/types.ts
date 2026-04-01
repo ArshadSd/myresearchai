@@ -342,6 +342,30 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_chats: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -131,7 +131,7 @@ export function CreateSchedulerModal({ open, onClose, onCreate }: Props) {
                 </p>
               </div>
 
-              <Button type="submit" disabled={!subject.trim() || loading} className="w-full gap-2 neon-glow-cyan">
+              <Button type="submit" disabled={!subject.trim() || loading} className="w-full gap-2">
                 {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating Journey...</> : <><Brain className="h-4 w-4" /> Start Learning Journey</>}
               </Button>
             </form>

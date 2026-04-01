@@ -127,8 +127,8 @@ const Analytics = () => {
   const statCards = [
     { icon: FileText, label: "Documents Analyzed", value: stats.docs, color: "text-primary" },
     { icon: MessageSquare, label: "Chat Sessions", value: stats.chats, color: "text-accent" },
-    { icon: Flame, label: "Daily Streak", value: `${stats.streak}d`, color: "text-neon-yellow" },
-    { icon: BarChart3, label: "Total Events", value: stats.events, color: "text-neon-green" },
+    { icon: Flame, label: "Daily Streak", value: `${stats.streak}d`, color: "text-accent" },
+    { icon: BarChart3, label: "Total Events", value: stats.events, color: "text-primary" },
     { icon: ThumbsUp, label: "Feedback Score", value: feedbackData.total > 0 ? `${feedbackData.ratio}%` : "N/A", color: "text-primary" },
   ];
 

@@ -98,9 +98,9 @@ const Auth = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md relative"
       >
-        <div className="glass-strong rounded-2xl p-8 neon-glow-cyan">
+        <div className="glass-strong rounded-2xl p-8">
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="p-2.5 rounded-xl bg-primary/10 neon-glow-cyan">
+            <div className="p-2.5 rounded-xl bg-primary/10">
               <Brain className="h-7 w-7 text-primary" />
             </div>
             <h1 className="text-2xl font-bold text-gradient">Research AI</h1>
