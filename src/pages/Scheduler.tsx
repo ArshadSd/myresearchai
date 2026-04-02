@@ -86,6 +86,7 @@ export default function Scheduler() {
                 onOpen={() => setActiveSchedulerId(s.id)}
                 onDelete={() => deleteScheduler(s.id)}
                 onDuplicate={() => duplicateScheduler(s)}
+                onRename={(newName) => renameScheduler(s.id, newName)}
               />
             ))}
           </AnimatePresence>

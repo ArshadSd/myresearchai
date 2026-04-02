@@ -119,6 +119,15 @@ export function SchedulerCard({ scheduler, onOpen, onDelete, onDuplicate, onRena
           size="icon"
           variant="outline"
           className="h-8 w-8 shrink-0"
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          title="Rename"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8 shrink-0"
           onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
           title="Duplicate"
         >

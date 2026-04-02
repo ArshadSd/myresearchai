@@ -80,6 +80,13 @@ export function useSchedulers() {
     toast({ title: "Scheduler deleted" });
   };
 
+  const renameScheduler = async (id: string, newSubject: string) => {
+    const { error } = await supabase.from("schedulers").update({ subject: newSubject }).eq("id", id);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    setSchedulers(prev => prev.map(s => s.id === id ? { ...s, subject: newSubject } : s));
+    toast({ title: "Scheduler renamed" });
+  };
+
   const duplicateScheduler = async (scheduler: Scheduler): Promise<Scheduler | null> => {
     if (!user) return null;
     const { data, error } = await supabase
@@ -93,7 +100,7 @@ export function useSchedulers() {
     return data as Scheduler;
   };
 
-  return { schedulers, loading, createScheduler, deleteScheduler, duplicateScheduler, refetch: fetchSchedulers };
+  return { schedulers, loading, createScheduler, deleteScheduler, renameScheduler, duplicateScheduler, refetch: fetchSchedulers };
 }
 
 export function useSchedulerDetail(schedulerId: string) {
