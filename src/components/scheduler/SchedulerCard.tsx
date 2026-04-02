@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Flame, Trophy, Trash2, Copy, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Calendar, Flame, Trophy, Trash2, Copy, ArrowRight, CheckCircle2, Pencil } from "lucide-react";
 import { Scheduler } from "@/hooks/useSchedulers";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -9,6 +11,7 @@ interface Props {
   onOpen: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onRename: (newName: string) => void;
 }
 
 export function SchedulerCard({ scheduler, onOpen, onDelete, onDuplicate }: Props) {
