@@ -9,7 +9,7 @@ import { SchedulerDetail } from "@/components/scheduler/SchedulerDetail";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Scheduler() {
-  const { schedulers, loading, createScheduler, deleteScheduler, duplicateScheduler } = useSchedulers();
+  const { schedulers, loading, createScheduler, deleteScheduler, duplicateScheduler, renameScheduler } = useSchedulers();
   const [modalOpen, setModalOpen] = useState(false);
   const [activeSchedulerId, setActiveSchedulerId] = useState<string | null>(null);
   const { toast } = useToast();
