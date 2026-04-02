@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Flame, Trophy, Trash2, Copy, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Calendar, Flame, Trophy, Trash2, Copy, ArrowRight, CheckCircle2, Pencil } from "lucide-react";
 import { Scheduler } from "@/hooks/useSchedulers";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -9,14 +11,25 @@ interface Props {
   onOpen: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onRename: (newName: string) => void;
 }
 
-export function SchedulerCard({ scheduler, onOpen, onDelete, onDuplicate }: Props) {
+export function SchedulerCard({ scheduler, onOpen, onDelete, onDuplicate, onRename }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(scheduler.subject);
+
   const progress = scheduler.is_completed
     ? 100
     : Math.round(((scheduler.current_day - 1) / scheduler.total_days) * 100);
 
   const daysLeft = scheduler.total_days - (scheduler.current_day - 1);
+
+  const handleRename = () => {
+    if (name.trim() && name.trim() !== scheduler.subject) {
+      onRename(name.trim());
+    }
+    setEditing(false);
+  };
 
   return (
     <motion.div
@@ -40,7 +53,19 @@ export function SchedulerCard({ scheduler, onOpen, onDelete, onDuplicate }: Prop
               </span>
             )}
           </div>
-          <h3 className="font-semibold text-base truncate">{scheduler.subject}</h3>
+          {editing ? (
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={handleRename}
+              onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") { setName(scheduler.subject); setEditing(false); } }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-8 text-sm font-semibold"
+              autoFocus
+            />
+          ) : (
+            <h3 className="font-semibold text-base truncate">{scheduler.subject}</h3>
+          )}
           {scheduler.topics && (
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{scheduler.topics}</p>
           )}
@@ -89,6 +114,15 @@ export function SchedulerCard({ scheduler, onOpen, onDelete, onDuplicate }: Prop
           onClick={(e) => { e.stopPropagation(); onOpen(); }}
         >
           {scheduler.is_completed ? "Review" : "Continue"} <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8 shrink-0"
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          title="Rename"
+        >
+          <Pencil className="h-3.5 w-3.5" />
         </Button>
         <Button
           size="icon"

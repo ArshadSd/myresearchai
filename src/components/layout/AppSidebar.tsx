@@ -84,70 +84,21 @@ export function AppSidebar() {
     if (!importToken.trim() || !user) return;
     setImporting(true);
     try {
-      // Find the shared chat
-      const { data: shared, error: sharedErr } = await supabase
-        .from("shared_chats")
-        .select("*")
-        .eq("token", importToken.trim())
-        .single();
+      const { data, error } = await supabase.functions.invoke("import-chat", {
+        body: { token: importToken.trim() },
+      });
 
-      if (sharedErr || !shared) {
-        toast({ title: "Invalid token", description: "No shared chat found with this token", variant: "destructive" });
+      if (error || data?.error) {
+        toast({ title: "Import failed", description: data?.error || error?.message || "Invalid token", variant: "destructive" });
         setImporting(false);
         return;
-      }
-
-      // Get the original conversation
-      const { data: origConv } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("id", shared.conversation_id)
-        .single();
-
-      if (!origConv) {
-        toast({ title: "Error", description: "Original chat not found", variant: "destructive" });
-        setImporting(false);
-        return;
-      }
-
-      // Create a new conversation for this user
-      const { data: newConv, error: convErr } = await supabase
-        .from("conversations")
-        .insert({
-          user_id: user.id,
-          title: `📥 ${origConv.title}`,
-        })
-        .select()
-        .single();
-
-      if (convErr || !newConv) {
-        toast({ title: "Error", description: "Failed to create chat", variant: "destructive" });
-        setImporting(false);
-        return;
-      }
-
-      // Copy all messages from original conversation
-      const { data: origMessages } = await supabase
-        .from("messages")
-        .select("role, content")
-        .eq("conversation_id", shared.conversation_id)
-        .order("created_at", { ascending: true });
-
-      if (origMessages && origMessages.length > 0) {
-        const newMessages = origMessages.map((m) => ({
-          conversation_id: newConv.id,
-          user_id: user.id,
-          role: m.role,
-          content: m.content,
-        }));
-        await supabase.from("messages").insert(newMessages);
       }
 
       setShowImportModal(false);
       setImportToken("");
       refetch();
-      navigate(`/chat?id=${newConv.id}`);
-      toast({ title: "Chat imported!", description: `"${origConv.title}" added to your chats` });
+      navigate(`/chat?id=${data.conversation.id}`);
+      toast({ title: "Chat imported!", description: `"${data.conversation.title}" added to your chats` });
     } catch {
       toast({ title: "Error", description: "Import failed", variant: "destructive" });
     } finally {
