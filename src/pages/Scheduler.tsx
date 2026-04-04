@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, CalendarDays, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSchedulers } from "@/hooks/useSchedulers";
+import { useSubscription } from "@/hooks/useSubscription";
 import { SchedulerCard } from "@/components/scheduler/SchedulerCard";
 import { CreateSchedulerModal } from "@/components/scheduler/CreateSchedulerModal";
 import { SchedulerDetail } from "@/components/scheduler/SchedulerDetail";
@@ -10,13 +12,30 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function Scheduler() {
   const { schedulers, loading, createScheduler, deleteScheduler, duplicateScheduler, renameScheduler } = useSchedulers();
+  const { currentPlan, limits, getMonthlySchedulerCount, incrementSchedulerUsage } = useSubscription();
   const [modalOpen, setModalOpen] = useState(false);
   const [activeSchedulerId, setActiveSchedulerId] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleCreate = async (subject: string, topics: string, days: number) => {
+    // Check scheduler limit
+    if (currentPlan !== "premium") {
+      const monthlyCount = await getMonthlySchedulerCount();
+      if (monthlyCount >= limits.schedulers_per_month) {
+        toast({
+          title: "Scheduler limit reached",
+          description: `You've used all ${limits.schedulers_per_month} schedulers this month. Upgrade for more.`,
+          variant: "destructive",
+        });
+        navigate("/pricing");
+        return;
+      }
+    }
+
     const s = await createScheduler(subject, topics, days);
     if (s) {
+      await incrementSchedulerUsage();
       toast({ title: "🚀 Journey created!", description: `${days}-day plan for "${subject}" is ready.` });
       setActiveSchedulerId(s.id);
     }
