@@ -71,6 +71,33 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_usage: {
+        Row: {
+          chats_used: number
+          created_at: string
+          id: string
+          schedulers_created: number
+          usage_date: string
+          user_id: string
+        }
+        Insert: {
+          chats_used?: number
+          created_at?: string
+          id?: string
+          schedulers_created?: number
+          usage_date?: string
+          user_id: string
+        }
+        Update: {
+          chats_used?: number
+          created_at?: string
+          id?: string
+          schedulers_created?: number
+          usage_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           conversation_id: string | null
@@ -362,6 +389,51 @@ export type Database = {
           created_at?: string
           id?: string
           token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          billing_cycle: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan: string
+          razorpay_payment_id: string | null
+          razorpay_subscription_id: string | null
+          status: string
+          trial_ends_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_cycle?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan?: string
+          razorpay_payment_id?: string | null
+          razorpay_subscription_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_cycle?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan?: string
+          razorpay_payment_id?: string | null
+          razorpay_subscription_id?: string | null
+          status?: string
+          trial_ends_at?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
