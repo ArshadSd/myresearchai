@@ -50,6 +50,7 @@ const Chat = () => {
   const { user } = useAuth();
   const { messages, setMessages, loadMessages, saveMessage } = useMessages(conversationId);
   const { createConversation, updateConversation } = useConversations();
+  const { canCreateChat, incrementChatUsage, currentPlan, usage, limits } = useSubscription();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
