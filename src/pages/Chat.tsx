@@ -193,6 +193,7 @@ const Chat = () => {
 
     setIsLoading(true);
     trackEvent("chat_message");
+    await incrementChatUsage();
 
     let assistantContent = "";
     const controller = new AbortController();
