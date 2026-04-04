@@ -27,6 +27,7 @@ const navItems = [
   { icon: FileText, label: "Documents", path: "/documents" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: User, label: "Profile", path: "/profile" },
+  { icon: Crown, label: "Upgrade", path: "/pricing" },
 ];
 
 const tagOptions = [
