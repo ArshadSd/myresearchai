@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentPlan, usage, limits, subscription } = useSubscription();
   const [recentDocs, setRecentDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
