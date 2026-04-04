@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Flame, Trophy, Lock, CheckCircle2, ChevronDown, ChevronUp, Loader2, BookOpen, Target, Clock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSchedulerDetail, SchedulerDay, SchedulerQuestion } from "@/hooks/useSchedulers";
+import { useSubscription } from "@/hooks/useSubscription";
 import { QuizModal } from "./QuizModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
