@@ -30,12 +30,14 @@ Deno.serve(async (req) => {
 
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, billing_cycle, is_trial } = await req.json();
 
-    // Verify signature
-    const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET")!;
-    const expectedSig = await hmacSha256(keySecret, `${razorpay_order_id}|${razorpay_payment_id}`);
-    
-    if (expectedSig !== razorpay_signature) {
-      return new Response(JSON.stringify({ error: "Invalid payment signature" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // For trials, skip signature verification
+    if (!is_trial) {
+      const keySecret = Deno.env.get("RAZORPAY_KEY_SECRET")!;
+      const expectedSig = await hmacSha256(keySecret, `${razorpay_order_id}|${razorpay_payment_id}`);
+      
+      if (expectedSig !== razorpay_signature) {
+        return new Response(JSON.stringify({ error: "Invalid payment signature" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
 
     const adminClient = createClient(supabaseUrl, serviceKey);
