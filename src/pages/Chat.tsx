@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMessages, type Message } from "@/hooks/useMessages";
 import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { streamChat } from "@/lib/streamChat";
 import { generateChatPdf } from "@/lib/generatePdf";
