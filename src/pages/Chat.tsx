@@ -156,6 +156,18 @@ const Chat = () => {
   const handleSend = async (overrideInput?: string, overrideContext?: string) => {
     const text = (overrideInput || input).trim();
     if (!text || isLoading) return;
+
+    // Check chat limit
+    if (!canCreateChat()) {
+      toast({
+        title: "Chat limit reached",
+        description: `You've used all ${limits.chats_per_day} chats for today. Upgrade your plan for more.`,
+        variant: "destructive",
+      });
+      navigate("/pricing");
+      return;
+    }
+
     if (!overrideInput) setInput("");
 
     const activeConvId = await ensureConversation(text.slice(0, 60));
