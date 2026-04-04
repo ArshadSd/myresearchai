@@ -17,6 +17,7 @@ interface Props {
 
 export function SchedulerDetail({ schedulerId, onBack }: Props) {
   const { scheduler, days, loading, upsertDay, saveQuestions, completeDay, unlockDay, refetch } = useSchedulerDetail(schedulerId);
+  const { limits } = useSubscription();
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [generatingDay, setGeneratingDay] = useState<number | null>(null);
   const [quizDay, setQuizDay] = useState<SchedulerDay | null>(null);
