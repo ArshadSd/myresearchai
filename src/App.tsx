@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Analytics from "./pages/Analytics";
 import Documents from "./pages/Documents";
 import Scheduler from "./pages/Scheduler";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/analytics" element={<ProtectedRoute><AppLayout><Analytics /></AppLayout></ProtectedRoute>} />
               <Route path="/documents" element={<ProtectedRoute><AppLayout><Documents /></AppLayout></ProtectedRoute>} />
               <Route path="/scheduler" element={<ProtectedRoute><AppLayout><Scheduler /></AppLayout></ProtectedRoute>} />
+              <Route path="/pricing" element={<ProtectedRoute><AppLayout><Pricing /></AppLayout></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AppHelperBot />

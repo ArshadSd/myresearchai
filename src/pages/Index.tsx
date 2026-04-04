@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Upload, Link2, FileText, Clock, GitCompareArrows } from "lucide-react";
+import { Upload, Link2, FileText, Clock, GitCompareArrows, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentPlan, usage, limits, subscription } = useSubscription();
   const [recentDocs, setRecentDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,6 +35,14 @@ const Dashboard = () => {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <h1 className="text-3xl font-bold mb-1">Welcome back</h1>
         <p className="text-muted-foreground">What would you like to research today?</p>
+        <div className="flex items-center gap-2 mt-2">
+          <Badge variant="outline" className="capitalize">{currentPlan} Plan</Badge>
+          {currentPlan !== "premium" && (
+            <span className="text-xs text-muted-foreground">
+              {usage.chats_used}/{limits.chats_per_day === Infinity ? "∞" : limits.chats_per_day} chats used today
+            </span>
+          )}
+        </div>
       </motion.div>
 
       {/* Action Cards */}
