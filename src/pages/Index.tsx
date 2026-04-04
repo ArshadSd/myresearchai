@@ -35,6 +35,14 @@ const Dashboard = () => {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
         <h1 className="text-3xl font-bold mb-1">Welcome back</h1>
         <p className="text-muted-foreground">What would you like to research today?</p>
+        <div className="flex items-center gap-2 mt-2">
+          <Badge variant="outline" className="capitalize">{currentPlan} Plan</Badge>
+          {currentPlan !== "premium" && (
+            <span className="text-xs text-muted-foreground">
+              {usage.chats_used}/{limits.chats_per_day === Infinity ? "∞" : limits.chats_per_day} chats used today
+            </span>
+          )}
+        </div>
       </motion.div>
 
       {/* Action Cards */}
