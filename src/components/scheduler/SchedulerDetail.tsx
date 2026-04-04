@@ -36,6 +36,7 @@ export function SchedulerDetail({ schedulerId, onBack }: Props) {
   }, [scheduler?.id, days.length]);
 
   // Calendar-day-change unlock: unlock next day if the calendar date has advanced since scheduler creation
+  // Respects the plan's max_unlock_per_day limit
   useEffect(() => {
     if (!scheduler || days.length === 0) return;
     const createdDate = new Date(scheduler.created_at);
@@ -43,15 +44,18 @@ export function SchedulerDetail({ schedulerId, onBack }: Props) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const daysPassed = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-    // daysPassed=0 means day 1 is active; daysPassed=1 means day 2 should be unlocked, etc.
-    const maxUnlockable = Math.min(daysPassed + 1, scheduler.total_days); // 1-indexed max day to unlock
+    // Apply plan limit: basic = 1 day unlock per day, pro = 7, premium = unlimited
+    const maxByPlan = limits.max_unlock_per_day === Infinity
+      ? scheduler.total_days
+      : Math.min(daysPassed * limits.max_unlock_per_day + 1, scheduler.total_days);
+    const maxUnlockable = Math.min(daysPassed + 1, scheduler.total_days, maxByPlan);
     for (let d = 1; d <= maxUnlockable; d++) {
       const dayData = days.find(x => x.day_number === d);
       if (!dayData || !dayData.is_unlocked) {
         unlockDay(d);
       }
     }
-  }, [scheduler?.id, days.length]);
+  }, [scheduler?.id, days.length, limits.max_unlock_per_day]);
 
   const generateDayContent = useCallback(async (dayNumber: number) => {
     if (!scheduler) return;
