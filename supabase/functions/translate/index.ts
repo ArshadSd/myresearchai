@@ -7,6 +7,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_TEXT_LENGTH = 50_000; // 50KB
+const ALLOWED_LANGS = ["en", "te", "hi", "ta", "es", "ja"];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -30,15 +33,28 @@ serve(async (req) => {
       });
     }
 
-    const { text, targetLang } = await req.json();
-    if (!text || !targetLang) {
-      return new Response(JSON.stringify({ error: "text and targetLang required" }), {
+    const body = await req.json();
+    const { text, targetLang } = body;
+
+    // Input validation
+    if (!text || typeof text !== "string" || text.trim().length === 0) {
+      return new Response(JSON.stringify({ error: "Text is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (text.length > MAX_TEXT_LENGTH) {
+      return new Response(JSON.stringify({ error: `Text too long. Maximum ${MAX_TEXT_LENGTH} characters.` }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!targetLang || typeof targetLang !== "string" || !ALLOWED_LANGS.includes(targetLang)) {
+      return new Response(JSON.stringify({ error: "Invalid target language" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("AI service not configured");
 
     const langMap: Record<string, string> = {
       en: "English", te: "Telugu", hi: "Hindi", ta: "Tamil", es: "Spanish", ja: "Japanese",
@@ -76,7 +92,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("translate error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "Translation failed. Please try again." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

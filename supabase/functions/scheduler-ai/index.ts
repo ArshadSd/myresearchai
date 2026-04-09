@@ -1,19 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_SUBJECT_LENGTH = 200;
+const MAX_TOPICS_LENGTH = 2000;
+const MAX_DAY_CONTENT_LENGTH = 50_000;
+const MAX_TOTAL_DAYS = 365;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, subject, topics, totalDays, dayNumber, dayContent } = await req.json();
+    // Auth validation
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data, error: authError } = await supabase.auth.getClaims(token);
+    if (authError || !data?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json();
+    const { action, subject, topics, totalDays, dayNumber, dayContent } = body;
+
+    // Validate action
+    if (!action || !["generate-day", "generate-quiz"].includes(action)) {
+      return new Response(JSON.stringify({ error: "Invalid action" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("AI service not configured");
 
     if (action === "generate-day") {
+      // Validate inputs
+      if (!subject || typeof subject !== "string" || subject.length > MAX_SUBJECT_LENGTH) {
+        return new Response(JSON.stringify({ error: "Invalid subject" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (topics && (typeof topics !== "string" || topics.length > MAX_TOPICS_LENGTH)) {
+        return new Response(JSON.stringify({ error: "Topics too long" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!dayNumber || typeof dayNumber !== "number" || dayNumber < 1 || dayNumber > MAX_TOTAL_DAYS) {
+        return new Response(JSON.stringify({ error: "Invalid day number" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!totalDays || typeof totalDays !== "number" || totalDays < 1 || totalDays > MAX_TOTAL_DAYS) {
+        return new Response(JSON.stringify({ error: "Invalid total days" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const prompt = `You are an expert study planner. Generate a focused, structured study plan for Day ${dayNumber} of ${totalDays}.
 
 Subject: ${subject}
@@ -55,13 +112,11 @@ Rules:
       if (!response.ok) {
         if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         if (response.status === 402) return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        throw new Error(`AI gateway error: ${response.status}`);
+        throw new Error("AI service error");
       }
 
       const data = await response.json();
       const rawContent = data.choices?.[0]?.message?.content || "";
-      
-      // Strip markdown code blocks if present
       const cleaned = rawContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const parsed = JSON.parse(cleaned);
 
@@ -69,6 +124,18 @@ Rules:
     }
 
     if (action === "generate-quiz") {
+      // Validate inputs
+      if (!subject || typeof subject !== "string" || subject.length > MAX_SUBJECT_LENGTH) {
+        return new Response(JSON.stringify({ error: "Invalid subject" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!dayContent || typeof dayContent !== "string" || dayContent.length > MAX_DAY_CONTENT_LENGTH) {
+        return new Response(JSON.stringify({ error: "Invalid day content" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const prompt = `Based on the following study content, generate exactly 5 multiple-choice questions to test understanding.
 
 Subject: ${subject}
@@ -112,7 +179,7 @@ Rules:
       if (!response.ok) {
         if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         if (response.status === 402) return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        throw new Error(`AI gateway error: ${response.status}`);
+        throw new Error("AI service error");
       }
 
       const data = await response.json();
@@ -127,7 +194,7 @@ Rules:
 
   } catch (e) {
     console.error("scheduler-ai error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "An error occurred. Please try again." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

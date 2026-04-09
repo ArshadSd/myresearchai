@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Brain, Mail, Lock, User, ArrowLeft, Loader2 } from "lucide-react";
+import { sanitizeError } from "@/lib/sanitizeError";
 
 type AuthMode = "login" | "signup" | "forgot";
 
@@ -30,7 +31,7 @@ const Auth = () => {
       });
       if (error) throw error;
     } catch (error: any) {
-      toast({ title: "Google Sign-In Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Google Sign-In Failed", description: sanitizeError(error), variant: "destructive" });
     } finally {
       setGoogleLoading(false);
     }
@@ -44,7 +45,7 @@ const Auth = () => {
       });
       if (error) throw error;
     } catch (error: any) {
-      toast({ title: "Apple Sign-In Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Apple Sign-In Failed", description: sanitizeError(error), variant: "destructive" });
     } finally {
       setAppleLoading(false);
     }
@@ -80,7 +81,7 @@ const Auth = () => {
         setMode("login");
       }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeError(error), variant: "destructive" });
     } finally {
       setSubmitting(false);
     }

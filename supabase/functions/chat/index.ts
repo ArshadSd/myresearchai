@@ -7,6 +7,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_MESSAGES = 50;
+const MAX_MESSAGE_LENGTH = 100_000; // 100KB per message
+const MAX_DOCUMENT_CONTEXT = 200_000; // 200KB
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -32,11 +36,44 @@ serve(async (req) => {
       });
     }
 
-    const { messages, documentContext } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const body = await req.json();
+    const { messages, documentContext } = body;
 
-    // Fetch feedback stats + negative examples to dynamically adjust system prompt
+    // Input validation
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: "Messages array is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (messages.length > MAX_MESSAGES) {
+      return new Response(JSON.stringify({ error: `Too many messages. Maximum ${MAX_MESSAGES} allowed.` }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    for (const msg of messages) {
+      if (!msg.role || typeof msg.role !== "string" || !["user", "assistant", "system"].includes(msg.role)) {
+        return new Response(JSON.stringify({ error: "Invalid message role" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (typeof msg.content !== "string" || msg.content.length > MAX_MESSAGE_LENGTH) {
+        return new Response(JSON.stringify({ error: "Message content too long" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+    if (documentContext !== undefined && documentContext !== null) {
+      if (typeof documentContext !== "string" || documentContext.length > MAX_DOCUMENT_CONTEXT) {
+        return new Response(JSON.stringify({ error: "Document context too long" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("AI service not configured");
+
+    // Fetch feedback stats
     const userId = data.claims.sub;
     const { data: feedbackStats } = await supabase
       .from("feedback")
@@ -51,7 +88,6 @@ serve(async (req) => {
       const helpful = feedbackStats.filter((f: any) => f.helpful).length;
       const ratio = helpful / total;
 
-      // Collect the most recent negative-feedback message samples to learn from
       const badExamples = feedbackStats
         .filter((f: any) => !f.helpful && f.message_content && f.message_content.trim().length > 20)
         .slice(0, 5)
@@ -119,7 +155,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("chat error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "An error occurred. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
