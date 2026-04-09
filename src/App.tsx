@@ -16,6 +16,7 @@ import Analytics from "./pages/Analytics";
 import Documents from "./pages/Documents";
 import Scheduler from "./pages/Scheduler";
 import Pricing from "./pages/Pricing";
+import CalendarView from "./pages/CalendarView";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
