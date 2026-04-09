@@ -16,6 +16,7 @@ import Analytics from "./pages/Analytics";
 import Documents from "./pages/Documents";
 import Scheduler from "./pages/Scheduler";
 import Pricing from "./pages/Pricing";
+import CalendarView from "./pages/CalendarView";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/documents" element={<ProtectedRoute><AppLayout><Documents /></AppLayout></ProtectedRoute>} />
               <Route path="/scheduler" element={<ProtectedRoute><AppLayout><Scheduler /></AppLayout></ProtectedRoute>} />
               <Route path="/pricing" element={<ProtectedRoute><AppLayout><Pricing /></AppLayout></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><AppLayout><CalendarView /></AppLayout></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AppHelperBot />
