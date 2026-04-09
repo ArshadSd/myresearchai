@@ -7,6 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_MESSAGES = 50;
+const MAX_MESSAGE_LENGTH = 100_000;
+const MAX_IMAGE_BASE64_LENGTH = 10_000_000; // ~7.5MB image
+const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -32,11 +37,46 @@ serve(async (req) => {
       });
     }
 
-    const { messages, imageBase64, imageMimeType } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const body = await req.json();
+    const { messages, imageBase64, imageMimeType } = body;
 
-    // Build messages with image content
+    // Input validation
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: "Messages array is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (messages.length > MAX_MESSAGES) {
+      return new Response(JSON.stringify({ error: "Too many messages" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    for (const msg of messages) {
+      if (!msg.role || !["user", "assistant", "system"].includes(msg.role)) {
+        return new Response(JSON.stringify({ error: "Invalid message role" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (typeof msg.content !== "string" || msg.content.length > MAX_MESSAGE_LENGTH) {
+        return new Response(JSON.stringify({ error: "Message content too long" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+    if (imageBase64 && typeof imageBase64 === "string" && imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+      return new Response(JSON.stringify({ error: "Image too large" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (imageMimeType && !ALLOWED_MIME_TYPES.includes(imageMimeType)) {
+      return new Response(JSON.stringify({ error: "Unsupported image format" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("AI service not configured");
+
     const aiMessages: any[] = [
       {
         role: "system",
@@ -44,12 +84,10 @@ serve(async (req) => {
       },
     ];
 
-    // Add conversation history (text-only messages)
     for (const msg of messages.slice(0, -1)) {
       aiMessages.push({ role: msg.role, content: msg.content });
     }
 
-    // Last user message with image
     const lastMsg = messages[messages.length - 1];
     const content: any[] = [];
     if (lastMsg?.content) {
@@ -94,7 +132,7 @@ serve(async (req) => {
   } catch (e) {
     console.error("chat-vision error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "An error occurred. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
