@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, MessageSquare, FileText, BarChart3, User, LogOut,
   Plus, ChevronLeft, ChevronRight, Brain, MoreHorizontal,
-  Pin, Star, Tag, Trash2, CalendarDays, Share2, Import, Copy, Check, Crown
+  Pin, Star, Tag, Trash2, CalendarDays, Share2, Import, Copy, Check, Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { icon: Home, label: "Dashboard", path: "/" },
   { icon: CalendarDays, label: "Scheduler", path: "/scheduler" },
-  { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+  { icon: Calendar, label: "Calendar", path: "/calendar" },
   { icon: FileText, label: "Documents", path: "/documents" },
   { icon: BarChart3, label: "Analytics", path: "/analytics" },
   { icon: User, label: "Profile", path: "/profile" },
