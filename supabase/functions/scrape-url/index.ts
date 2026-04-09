@@ -51,6 +51,15 @@ serve(async (req) => {
       );
     }
 
+    // SSRF protection: block private/internal IP ranges
+    const hostname = parsedUrl.hostname;
+    if (/^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|::1|fc|fd|fe80|localhost)/i.test(hostname)) {
+      return new Response(
+        JSON.stringify({ error: "Access to internal addresses is not allowed" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Basic safety check
     const suspiciousTLDs = [".tk", ".ml", ".ga", ".cf", ".gq"];
     const isSuspiciousTLD = suspiciousTLDs.some((tld) => parsedUrl.hostname.endsWith(tld));

@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useConversations } from "@/hooks/useConversations";
+import { sanitizeError } from "@/lib/sanitizeError";
 
 const Profile = () => {
   const { user } = useAuth();
@@ -60,7 +61,7 @@ const Profile = () => {
     const path = `${user.id}/avatar.${file.name.split(".").pop()}`;
     const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
     if (error) {
-      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+      toast({ title: "Upload failed", description: sanitizeError(error), variant: "destructive" });
       setUploading(false);
       return;
     }
@@ -88,7 +89,7 @@ const Profile = () => {
     setChangingPw(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeError(error), variant: "destructive" });
     } else {
       toast({ title: "Password updated" });
       setNewPassword("");
