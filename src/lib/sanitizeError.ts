@@ -9,6 +9,11 @@ export function sanitizeError(error: unknown): string {
       : error instanceof Error
         ? error.message
         : (error as any)?.message ?? "";
+  const code = typeof error === "object" && error !== null ? (error as any)?.code ?? "" : "";
+  const weakPasswordReasons =
+    typeof error === "object" && error !== null && Array.isArray((error as any)?.weak_password?.reasons)
+      ? (error as any).weak_password.reasons
+      : [];
 
   if (!message) return "An unexpected error occurred. Please try again.";
 
@@ -17,6 +22,12 @@ export function sanitizeError(error: unknown): string {
   if (message.includes("Email not confirmed")) return "Please verify your email before signing in.";
   if (message.includes("User already registered")) return "An account with this email already exists.";
   if (message.includes("Password should be at least")) return "Password is too short. Use at least 6 characters.";
+  if (code === "weak_password" || message.toLowerCase().includes("weak password")) {
+    if (weakPasswordReasons.includes("pwned") || message.toLowerCase().includes("easy to guess")) {
+      return "This password has appeared in known data breaches or is too easy to guess. Please choose a stronger, unique password.";
+    }
+    return "Please choose a stronger password.";
+  }
   if (message.includes("rate limit") || message.includes("too many requests"))
     return "Too many attempts. Please wait a moment and try again.";
 
