@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Moon, Sun, Brain, Globe2, Palette, Crown } from "lucide-react";
+import { Moon, Sun, Globe2, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -14,24 +13,12 @@ import { cn } from "@/lib/utils";
 export function AppHeader() {
   const { theme, themeName, toggleTheme, setThemeName } = useTheme();
   const [domainMode, setDomainMode] = useState(false);
-  const navigate = useNavigate();
 
   (window as any).__domainMode = domainMode;
 
   return (
     <header className="h-14 border-b border-border/30 bg-card/60 backdrop-blur-xl flex items-center justify-between px-6">
       <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/pricing")}
-          className="gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10"
-        >
-          <Crown className="h-3.5 w-3.5" />
-          Upgrade
-        </Button>
-      </div>
-      <div className="flex items-center gap-4">
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-2">
@@ -53,7 +40,8 @@ export function AppHeader() {
               : "General Mode: AI answers from general knowledge"}
           </TooltipContent>
         </Tooltip>
-
+      </div>
+      <div className="flex items-center gap-4">
         {/* Theme picker */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
