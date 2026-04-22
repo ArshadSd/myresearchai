@@ -23,8 +23,8 @@ export interface UsageInfo {
 }
 
 const PLAN_LIMITS = {
-  basic: { chats_per_day: 2, schedulers_per_month: 1, max_unlock_per_day: 1 },
-  pro: { chats_per_day: 5, schedulers_per_month: 3, max_unlock_per_day: 7 },
+  basic: { chats_per_day: Infinity, schedulers_per_month: Infinity, max_unlock_per_day: Infinity },
+  pro: { chats_per_day: Infinity, schedulers_per_month: Infinity, max_unlock_per_day: Infinity },
   premium: { chats_per_day: Infinity, schedulers_per_month: Infinity, max_unlock_per_day: Infinity },
 };
 
@@ -87,13 +87,9 @@ export function useSubscription() {
   const currentPlan = (subscription?.plan as PlanType) || "basic";
   const limits = PLAN_LIMITS[currentPlan];
 
-  const canCreateChat = () => usage.chats_used < limits.chats_per_day;
+  const canCreateChat = () => true;
 
-  const canCreateScheduler = () => {
-    if (currentPlan === "premium") return true;
-    // For basic/pro, check monthly scheduler count
-    return true; // We'll check monthly in the component
-  };
+  const canCreateScheduler = () => true;
 
   const incrementChatUsage = async () => {
     if (!user) return;

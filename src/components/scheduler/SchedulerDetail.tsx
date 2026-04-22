@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Flame, Trophy, Lock, CheckCircle2, ChevronDown, ChevronUp, Loader2, BookOpen, Target, Clock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSchedulerDetail, SchedulerDay, SchedulerQuestion } from "@/hooks/useSchedulers";
-import { useSubscription } from "@/hooks/useSubscription";
 import { QuizModal } from "./QuizModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,7 +16,6 @@ interface Props {
 
 export function SchedulerDetail({ schedulerId, onBack }: Props) {
   const { scheduler, days, loading, upsertDay, saveQuestions, completeDay, unlockDay, refetch } = useSchedulerDetail(schedulerId);
-  const { limits } = useSubscription();
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [generatingDay, setGeneratingDay] = useState<number | null>(null);
   const [quizDay, setQuizDay] = useState<SchedulerDay | null>(null);
@@ -44,18 +42,14 @@ export function SchedulerDetail({ schedulerId, onBack }: Props) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const daysPassed = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-    // Apply plan limit: basic = 1 day unlock per day, pro = 7, premium = unlimited
-    const maxByPlan = limits.max_unlock_per_day === Infinity
-      ? scheduler.total_days
-      : Math.min(daysPassed * limits.max_unlock_per_day + 1, scheduler.total_days);
-    const maxUnlockable = Math.min(daysPassed + 1, scheduler.total_days, maxByPlan);
+    const maxUnlockable = Math.min(daysPassed + 1, scheduler.total_days);
     for (let d = 1; d <= maxUnlockable; d++) {
       const dayData = days.find(x => x.day_number === d);
       if (!dayData || !dayData.is_unlocked) {
         unlockDay(d);
       }
     }
-  }, [scheduler?.id, days.length, limits.max_unlock_per_day]);
+  }, [scheduler?.id, days.length]);
 
   const generateDayContent = useCallback(async (dayNumber: number) => {
     if (!scheduler) return;

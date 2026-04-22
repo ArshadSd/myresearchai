@@ -17,7 +17,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useMessages, type Message } from "@/hooks/useMessages";
 import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { streamChat } from "@/lib/streamChat";
 import { generateChatPdf } from "@/lib/generatePdf";
@@ -50,7 +49,6 @@ const Chat = () => {
   const { user } = useAuth();
   const { messages, setMessages, loadMessages, saveMessage } = useMessages(conversationId);
   const { createConversation, updateConversation } = useConversations();
-  const { canCreateChat, incrementChatUsage, currentPlan, usage, limits } = useSubscription();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -157,17 +155,6 @@ const Chat = () => {
     const text = (overrideInput || input).trim();
     if (!text || isLoading) return;
 
-    // Check chat limit
-    if (!canCreateChat()) {
-      toast({
-        title: "Chat limit reached",
-        description: `You've used all ${limits.chats_per_day} chats for today. Upgrade your plan for more.`,
-        variant: "destructive",
-      });
-      navigate("/pricing");
-      return;
-    }
-
     if (!overrideInput) setInput("");
 
     const activeConvId = await ensureConversation(text.slice(0, 60));
@@ -193,7 +180,6 @@ const Chat = () => {
 
     setIsLoading(true);
     trackEvent("chat_message");
-    await incrementChatUsage();
 
     let assistantContent = "";
     const controller = new AbortController();
