@@ -43,25 +43,7 @@ export function useSubscription() {
       .maybeSingle();
 
     if (data) {
-      // Check if subscription has expired
-      if (data.current_period_end && new Date(data.current_period_end) < new Date()) {
-        // Expired, downgrade to basic
-        await supabase.from("subscriptions").update({ plan: "basic", status: "active", trial_ends_at: null }).eq("user_id", user.id);
-        setSubscription({ ...data, plan: "basic", status: "active" } as Subscription);
-      } else if (data.status === "trialing" && data.trial_ends_at && new Date(data.trial_ends_at) < new Date()) {
-        await supabase.from("subscriptions").update({ plan: "basic", status: "active", trial_ends_at: null }).eq("user_id", user.id);
-        setSubscription({ ...data, plan: "basic", status: "active" } as Subscription);
-      } else {
-        setSubscription(data as Subscription);
-      }
-    } else {
-      // Create basic subscription for existing user
-      const { data: newSub } = await supabase
-        .from("subscriptions")
-        .insert({ user_id: user.id, plan: "basic", status: "active" })
-        .select()
-        .single();
-      if (newSub) setSubscription(newSub as Subscription);
+      setSubscription(data as Subscription);
     }
 
     // Fetch today's usage
